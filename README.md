@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# Apka Siłownia (FitQuest) 🏋️‍♂️🎮
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Nowoczesna, mobilnie zoptymalizowana aplikacja webowa do treningu siłowego, łącząca śledzenie postępów z grywalizacją w stylu gier RPG. Zdobywaj punkty doświadczenia (EXP) dla poszczególnych partii mięśniowych, awansuj na kolejne poziomy, realizuj cele kaloryczne i odblokowuj wyjątkowe osiągnięcia!
 
-Currently, two official plugins are available:
+## 🌟 Główne funkcje programu
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Grywalizacja (RPG)**: Zbieraj punkty doświadczenia za każdy trening i rozwijaj wirtualnego bohatera.
+- **Poziomy mięśni**: Poszczególne partie ciała mają własne paski postępu. Skup się w pełni na ich rozbudowie.
+- **Śledzenie treningów**: Proste rejestrowanie serii, powtórzeń i użytego ciężaru.
+- **Katalog planów treningowych**: Baza gotowych i spersonalizowanych planów dostosowanych do Twojego poziomu zaawansowania.
+- **Pulpit i statystyki**: Wizualizacja postępów, wykresy wydolności oraz licznik przyjętych kalorii.
+- **Tablica wyników (Leaderboard)**: Rywalizuj ze znajomymi i innymi użytkownikami o najlepsze miejsce w rankingu!
+- **System osiągnięć i odznak**: Nagrody za regularność, rekordy siłowe i codzienne passy (streak).
+- **Zintegrowane logowanie**: Bezpieczna autoryzacja za pomocą Firebase (Email/Hasło).
 
-## React Compiler
+## 🛠️ Technologie
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Aplikacja opiera się o nowoczesny stos technologiczny (Frontend):
 
-## Expanding the ESLint configuration
+- **[React 19](https://react.dev/)** – Biblioteka do budowania interfejsów użytkownika
+- **[TypeScript](https://www.typescriptlang.org/)** – Bezpieczne typowanie kodu
+- **[Vite](https://vitejs.dev/)** – Ultraszybki bundler i środowisko deweloperskie
+- **[Zustand](https://zustand-demo.pmnd.rs/)** – Lekkie i proste zarządzanie stanem lokalnym
+- **[React Router DOM](https://reactrouter.com/)** – Nawigacja między stronami (SPA)
+- **[Firebase](https://firebase.google.com/)** – Autoryzacja i ewentualny Backend jako Usługa (BaaS)
+- **[Lucide React](https://lucide.dev/)** – Nowoczesny pakiet ikon
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 Uruchomienie lokalne (Development)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Aby uruchomić aplikację lokalnie na swoim komputerze:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 1. Wymagania wstępne
+Upewnij się, że masz zainstalowane środowisko **[Node.js](https://nodejs.org/en/)** (wraz z menedżerem pakietów npm).
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. Sklonuj repozytorium (albo po prostu przejdź do folderu projektu)
+```bash
+git clone https://github.com/meteo1939/apka-silownia.git
+cd apka-silownia
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 3. Zainstaluj zależności
+```bash
+npm install
 ```
+
+### 4. Uruchom serwer testowy
+```bash
+npm run dev
+```
+
+Aplikacja powinna być domyślnie dostępna w przeglądarce pod adresem: `http://localhost:5173/`.
+
+## 📦 Budowanie do produkcji (Production Build)
+
+Aby wygenerować zoptymalizowaną wersję aplikacji gotową do wdrożenia, uruchom:
+```bash
+npm run build
+```
+Zbudowane pliki pojawią się w automatycznie utworzonym folderze `dist/`.
+
+## 🤝 Wkład własny (Contributing)
+
+Jeśli chcesz rozwijać projekt, stwórz nową gałąź (`git checkout -b feature/nowa-funkcja`), wprowadź zmiany, zrób commit (`git commit -m 'Dodanie nowej funkcji'`) i wypchnij gałąź na serwer (`git push origin feature/nowa-funkcja`). Następnie możesz utworzyć Pull Request!
