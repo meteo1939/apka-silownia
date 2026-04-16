@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, generateRandomItem } from '../store/useAuthStore';
 import { Navigation } from '../components/Navigation';
-import { CheckCircle, Plus } from 'lucide-react';
+import { CheckCircle, Plus, BookOpen } from 'lucide-react';
+
+const WORKOUT_PLANS = [
+  { id: 'ppl', name: 'Push, Pull, Legs (PPL)', desc: 'A 3-day split ideal for building muscle.', level: 'Intermediate', days: 3 },
+  { id: 'fbw', name: 'Full Body Workout', desc: 'Hits all major muscle groups in one session.', level: 'Beginner', days: 3 },
+  { id: 'upper_lower', name: 'Upper / Lower Split', desc: 'Focus on upper body one day, lower the next.', level: 'Intermediate', days: 4 },
+  { id: 'bro_split', name: 'Bro Split', desc: 'Focus on 1-2 muscle groups per day.', level: 'Advanced', days: 5 },
+];
 
 interface ExerciseSet {
   reps: number;
@@ -65,6 +72,12 @@ export const Workout = () => {
   const gainExp = useAuthStore(state => state.gainExp);
   const navigate = useNavigate();
 
+  const handleLoadPlan = (planId: string) => {
+    if (PLAN_TEMPLATES[planId]) {
+      setExercises(JSON.parse(JSON.stringify(PLAN_TEMPLATES[planId])));
+    }
+  };
+
   const handleAddExercise = () => {
     const exInfo = EXERCISE_DB.find(e => e.name === selectedEx);
     if (!exInfo) return;
@@ -88,8 +101,9 @@ export const Workout = () => {
     
     const user = useAuthStore.getState().user;
     if (!user) return;
-
+    
     const awardAchievement = useAuthStore.getState().awardAchievement;
+    const lootItem = useAuthStore.getState().lootItem;
     const musclesWorked = Array.from(new Set(exercises.map(e => e.muscle)));
     
     let totalExpGained = 0;
@@ -113,11 +127,24 @@ export const Workout = () => {
     }
 
     gainExp(musclesWorked, totalExpGained);
-    alert(`Workout Complete! Gained ${totalExpGained} EXP in: ${musclesWorked.join(', ')}.`);
+
+    // Roll for Loot (30% chance)
+    let droppedItem = null;
+    if (Math.random() < 0.3) {
+       droppedItem = generateRandomItem();
+       lootItem(droppedItem);
+    }
+
+    let alertMsg = `Workout Complete! Gained ${totalExpGained} EXP in: ${musclesWorked.join(', ')}.`;
+    if (droppedItem) {
+      alertMsg += `\nZnaleziono Loot: ${droppedItem.name} (+${droppedItem.statBoost.value} ${droppedItem.statBoost.stat}) ! Sprawdź plecak w Profilu.`;
+    }
+    alert(alertMsg);
     navigate('/');
   };
 
   return (
+    <>
     <div className="animate-fade-in container" style={{ paddingTop: '24px', paddingBottom: '80px', minHeight: '100vh' }}>
       <header style={{ marginBottom: '24px' }}>
         <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '8px' }}>Log Workout</h1>
@@ -131,9 +158,10 @@ export const Workout = () => {
             className="input-field" 
             value={selectedEx} 
             onChange={(e) => setSelectedEx(e.target.value)}
+            style={{ padding: '12px', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
           >
             {EXERCISE_DB.map(ex => (
-              <option key={ex.name} value={ex.name} style={{ color: 'black' }}>
+              <option key={ex.name} value={ex.name}>
                 {ex.name} ({ex.muscle})
               </option>
             ))}
@@ -145,6 +173,34 @@ export const Workout = () => {
       </section>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
+        {exercises.length === 0 && (
+          <>
+            <h3 style={{ fontSize: '18px', marginTop: '8px', marginBottom: '8px' }}>Popular Plans</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {WORKOUT_PLANS.map((plan) => (
+                <button 
+                  key={plan.id} 
+                  className="glass-panel" 
+                  onClick={() => handleLoadPlan(plan.id)}
+                  style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', border: '1px solid transparent', transition: '0.2s', cursor: 'pointer', background: 'var(--surface-base)' }}
+                  onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-base)'}
+                  onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <BookOpen size={16} color="var(--accent-base)" />
+                    <h3 style={{ fontSize: '18px', margin: 0, color: 'var(--text-primary)' }}>{plan.name}</h3>
+                  </div>
+                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'left' }}>{plan.desc}</p>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: 'white' }}>{plan.level}</span>
+                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: 'white' }}>{plan.days} Days/Week</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         {exercises.map((ex, exIndex) => (
           <div key={exIndex} className="glass-panel" style={{ padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -189,7 +245,8 @@ export const Workout = () => {
         </button>
       )}
 
-      <Navigation />
     </div>
+    <Navigation />
+    </>
   );
 };

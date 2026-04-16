@@ -173,3 +173,42 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 100vh;
   min-height: 100dvh;
 }
+
+/* Arena V2 Elements */
+@keyframes shakeConfig {
+  0% { transform: translateX(0) scale(1.02); }
+  25% { transform: translateX(-8px) rotate(-2deg) scale(1.02); }
+  50% { transform: translateX(8px) rotate(2deg) scale(1.02); }
+  75% { transform: translateX(-8px) rotate(-2deg) scale(1.02); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+.animate-shake {
+  animation: shakeConfig 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes ghostConfig {
+  0% { opacity: 1; filter: blur(0px); transform: translateX(0); }
+  50% { opacity: 0.3; filter: blur(4px); transform: translateX(10px); }
+  100% { opacity: 1; filter: blur(0px); transform: translateX(0); }
+}
+
+.animate-ghost {
+  animation: ghostConfig 0.4s ease-out;
+}
+
+@keyframes floatUpConfig {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  20% { opacity: 1; transform: translateY(-10px) scale(1.2); }
+  80% { opacity: 1; transform: translateY(-30px) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(0.8); }
+}
+
+.animate-float-up {
+  animation: floatUpConfig 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  position: absolute;
+  font-weight: 900;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.8);
+  pointer-events: none;
+  z-index: 50;
+}
