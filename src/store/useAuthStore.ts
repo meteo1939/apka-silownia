@@ -137,6 +137,7 @@ interface AuthState {
   addCoins: (amount: number) => Promise<void>;
   deductCoins: (amount: number) => Promise<boolean>;
   useArenaFight: () => Promise<boolean>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const INITIAL_MUSCLES = ['Chest', 'Back', 'Legs', 'Arms', 'Core', 'Shoulders'];
@@ -219,8 +220,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
 
     supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        await get().loadUserData(session.user.id);
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        // Only load if not already loaded for this user
+        const currentUser = get().user;
+        if (!currentUser || currentUser.id !== session.user.id) {
+          await get().loadUserData(session.user.id);
+        }
       } else if (event === 'SIGNED_OUT') {
         set({ user: null, isAuthenticated: false, isLoading: false });
       }
@@ -619,5 +624,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return true;
     }
     return false;
+  },
+
+  loginWithGoogle: async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
   }
 }));
