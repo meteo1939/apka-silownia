@@ -212,20 +212,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isLoading: true,
 
   initSession: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await get().loadUserData(session.user.id);
-    } else {
-      set({ isLoading: false });
-    }
-
+    // Set up listener FIRST — recommended by Supabase for OAuth/PKCE flows
     supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-        // Only load if not already loaded for this user
+      if (event === 'INITIAL_SESSION') {
+        // Fires once on startup — handles both normal load & OAuth redirects
+        if (session?.user) {
+          await get().loadUserData(session.user.id);
+        } else {
+          set({ isLoading: false });
+        }
+      } else if (event === 'SIGNED_IN' && session?.user) {
         const currentUser = get().user;
         if (!currentUser || currentUser.id !== session.user.id) {
           await get().loadUserData(session.user.id);
         }
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        // Silent token refresh — don't reload profile
       } else if (event === 'SIGNED_OUT') {
         set({ user: null, isAuthenticated: false, isLoading: false });
       }
