@@ -100,6 +100,7 @@ export interface UserProfile {
   muscleStats: Record<string, MuscleStat>;
   meals?: { id: string, name: string, calories: number }[];
   heroIcon?: string;
+  heroColor?: string;
   friends?: string[];
   inventory?: Item[];
   equipped?: {
@@ -137,7 +138,6 @@ interface AuthState {
   addCoins: (amount: number) => Promise<void>;
   deductCoins: (amount: number) => Promise<boolean>;
   useArenaFight: () => Promise<boolean>;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const INITIAL_MUSCLES = ['Chest', 'Back', 'Legs', 'Arms', 'Core', 'Shoulders'];
@@ -212,22 +212,27 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isLoading: true,
 
   initSession: async () => {
-    // Set up listener FIRST — recommended by Supabase for OAuth/PKCE flows
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Błąd pobierania sesji:', error);
+        set({ isLoading: false });
+      } else if (session?.user) {
+        await get().loadUserData(session.user.id);
+      } else {
+        set({ isLoading: false });
+      }
+    } catch (err) {
+      console.error('Wyjątek podczas pobierania sesji:', err);
+      set({ isLoading: false });
+    }
+
     supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'INITIAL_SESSION') {
-        // Fires once on startup — handles both normal load & OAuth redirects
-        if (session?.user) {
-          await get().loadUserData(session.user.id);
-        } else {
-          set({ isLoading: false });
-        }
-      } else if (event === 'SIGNED_IN' && session?.user) {
+      if (event === 'SIGNED_IN' && session?.user) {
         const currentUser = get().user;
         if (!currentUser || currentUser.id !== session.user.id) {
           await get().loadUserData(session.user.id);
         }
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        // Silent token refresh — don't reload profile
       } else if (event === 'SIGNED_OUT') {
         set({ user: null, isAuthenticated: false, isLoading: false });
       }
@@ -297,36 +302,67 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   login: async (email, pass) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) return { success: false, error: 'Nieprawidłowy email lub hasło.' };
-    return { success: true };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (error) return { success: false, error: 'Nieprawidłowy email lub hasło.' };
+      return { success: true };
+    } catch (e: any) {
+      console.error('Błąd logowania:', e);
+      return { success: false, error: 'Brak połączenia z internetem lub serwerem (Failed to fetch).' };
+    }
   },
 
   register: async (email, pass, username, height, weight) => {
-    // Check if username is taken
-    const botNames = ['arnold s.', 'ronnie c.', 'chris b.', 'sam s.', 'david l.', 'noel d.', 'alex e.', 'max f.', 'jeff g.', 'tom h.'];
-    if (botNames.includes(username.trim().toLowerCase())) {
-      return { success: false, error: 'Ta nazwa gladiatora jest już zajęta!' };
-    }
-
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('id')
-      .ilike('username', username.trim())
-      .maybeSingle();
-
-    if (existing) return { success: false, error: 'Ta nazwa gladiatora jest już zajęta!' };
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password: pass,
-      options: {
-        data: { username: username.trim(), height, weight }
+    try {
+      // Check if username is taken
+      const botNames = ['arnold s.', 'ronnie c.', 'chris b.', 'sam s.', 'david l.', 'noel d.', 'alex e.', 'max f.', 'jeff g.', 'tom h.'];
+      if (botNames.includes(username.trim().toLowerCase())) {
+        return { success: false, error: 'Ta nazwa gladiatora jest już zajęta!' };
       }
-    });
 
-    if (error) return { success: false, error: error.message };
-    return { success: true };
+      // Allow registration to proceed even if RLS blocks checking the username (as anonymous user)
+      let existing = null;
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('username', username.trim())
+          .maybeSingle();
+        existing = data;
+      } catch (checkErr) {
+        console.warn('Nie udało się sprawdzić unikalności nicku (prawdopodobnie RLS):', checkErr);
+      }
+
+      if (existing) return { success: false, error: 'Ta nazwa gladiatora jest już zajęta!' };
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: pass,
+        options: {
+          data: { username: username.trim(), height, weight }
+        }
+      });
+
+      if (error) {
+        let errMsg = error.message;
+        if (
+          errMsg.toLowerCase().includes('already registered') || 
+          errMsg.toLowerCase().includes('email already exists') || 
+          errMsg.toLowerCase().includes('email_exists')
+        ) {
+          errMsg = 'Konto o tym adresie e-mail jest już zarejestrowane.';
+        } else if (errMsg.includes('Ta nazwa gladiatora jest już zajęta!')) {
+          errMsg = 'Ta nazwa gladiatora jest już zajęta!';
+        } else if (errMsg.toLowerCase().includes('password should be') || errMsg.toLowerCase().includes('password is too weak')) {
+          errMsg = 'Hasło musi mieć co najmniej 6 znaków.';
+        }
+        return { success: false, error: errMsg };
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.error('Błąd rejestracji:', e);
+      return { success: false, error: 'Brak połączenia z internetem lub serwerem (Failed to fetch). Upewnij się, że masz połączenie z siecią i poprawnie skonfigurowany plik .env.' };
+    }
   },
 
   logout: async () => {
@@ -626,16 +662,5 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return true;
     }
     return false;
-  },
-
-  loginWithGoogle: async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) return { success: false, error: error.message };
-    return { success: true };
   }
 }));

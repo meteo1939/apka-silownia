@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
 
 :root {
-  --bg-color: #09090b;
-  --surface-color: #18181b;
-  --surface-hover: #27272a;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --bg-color: #0c0a09;
+  --surface-color: #1c1917;
+  --surface-hover: #292524;
+  --border-color: rgba(249, 115, 22, 0.18);
+  --text-primary: #fcfcfb;
+  --text-secondary: #d6d3d1;
+  --text-muted: #78716c;
   
-  --accent-base: #8b5cf6;
-  --accent-gradient: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
-  --accent-glow: rgba(139, 92, 246, 0.5);
+  --accent-base: #f97316;
+  --accent-gradient: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%);
+  --accent-glow: rgba(249, 115, 22, 0.4);
 
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-heading: 'Outfit', system-ui, sans-serif;

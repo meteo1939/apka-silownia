@@ -1,8 +1,30 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Dumbbell, User, Trophy, Apple, Swords } from 'lucide-react';
 
 export const Navigation = () => {
   const location = useLocation();
+  const [visible, setVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Scrolling down and past threshold -> hide
+      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        setVisible(false);
+      } else {
+        // Scrolling up -> show
+        setVisible(true);
+      }
+      
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   const getStyle = (path: string) => {
     const isActive = location.pathname === path;
@@ -17,9 +39,15 @@ export const Navigation = () => {
   };
 
   return (
-    <nav className="glass-panel" style={{
+    <nav style={{
       position: 'fixed', bottom: '16px', left: '16px', right: '16px', margin: '0 auto', maxWidth: '448px',
       display: 'flex', justifyContent: 'space-around', padding: '12px 0', zIndex: 50,
+      background: 'var(--surface-color)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 'var(--radius-lg)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+      transform: visible ? 'translateY(0)' : 'translateY(120%)',
+      transition: 'transform 0.3s ease-in-out',
     }}>
       <Link to="/" style={getStyle('/')}>
         <User size={24} />
