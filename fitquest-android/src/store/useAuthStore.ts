@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
 import {
+  DEFAULT_DASHBOARD_LAYOUT,
+  normalizeDashboardLayout,
+  type DashboardLayout,
+} from '../lib/dashboardLayout';
+import {
   deleteWorkoutLog,
   fetchWorkoutLogs,
   getPendingWorkoutLogs,
@@ -137,6 +142,7 @@ interface AuthState {
   workoutLogsLoading: boolean;
   onboarding: OnboardingData | null;
   bodyWeightLog: BodyWeightEntry[];
+  dashboardLayout: DashboardLayout;
   login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, pass: string, username: string, height: number, weight: number) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -146,6 +152,7 @@ interface AuthState {
   deleteWorkout: (workoutId: string) => Promise<void>;
   saveOnboarding: (data: OnboardingData) => Promise<void>;
   addBodyWeight: (weight: number, date?: string) => Promise<void>;
+  saveDashboardLayout: (layout: DashboardLayout) => Promise<void>;
   initSession: () => Promise<void>;
   gainExp: (muscles: string[], amount: number) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -300,6 +307,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   workoutLogsLoading: false,
   onboarding: null,
   bodyWeightLog: [],
+  dashboardLayout: normalizeDashboardLayout(DEFAULT_DASHBOARD_LAYOUT),
 
   initSession: async () => {
     try {
@@ -402,6 +410,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         isLoading: false,
         onboarding: meta.onboarding,
         bodyWeightLog,
+        dashboardLayout: meta.dashboardLayout,
       });
       void get().loadWorkoutHistory(userId);
     } catch {
@@ -507,6 +516,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     await saveUserMeta(user.id, { onboarding: data, body_weight_log: weights });
   },
 
+  saveDashboardLayout: async (layout) => {
+    const { user } = get();
+    if (!user) return;
+
+    const normalized = normalizeDashboardLayout(layout);
+    set({ dashboardLayout: normalized });
+    await saveUserMeta(user.id, { dashboard_layout: normalized });
+  },
+
   addBodyWeight: async (weight, date) => {
     const { user, bodyWeightLog } = get();
     if (!user || !Number.isFinite(weight) || weight <= 0) return;
@@ -608,6 +626,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       workoutLogsLoading: false,
       onboarding: null,
       bodyWeightLog: [],
+      dashboardLayout: normalizeDashboardLayout(DEFAULT_DASHBOARD_LAYOUT),
     });
   },
 

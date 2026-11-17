@@ -1,4 +1,9 @@
 import { supabase } from './supabaseClient';
+import {
+  DEFAULT_DASHBOARD_LAYOUT,
+  normalizeDashboardLayout,
+  type DashboardLayout,
+} from './dashboardLayout';
 
 export type WorkoutGoal = 'mass' | 'cut' | 'maintain';
 export type WorkoutLevel = 'beginner' | 'intermediate' | 'advanced';
@@ -433,11 +438,20 @@ const normalizeBodyWeightLog = (value: unknown): BodyWeightEntry[] => {
     .slice(-BODY_WEIGHT_LIMIT);
 };
 
-export const loadUserMeta = async (userId: string): Promise<{ onboarding: OnboardingData | null; bodyWeightLog: BodyWeightEntry[] }> => {
-  const cached = readJSON<{ onboarding: OnboardingData | null; bodyWeightLog: BodyWeightEntry[] }>(
-    metaCacheKey(userId),
-    { onboarding: null, bodyWeightLog: [] }
-  );
+export interface UserMeta {
+  onboarding: OnboardingData | null;
+  bodyWeightLog: BodyWeightEntry[];
+  dashboardLayout: DashboardLayout;
+}
+
+const emptyUserMeta = (): UserMeta => ({
+  onboarding: null,
+  bodyWeightLog: [],
+  dashboardLayout: { ...DEFAULT_DASHBOARD_LAYOUT, order: [...DEFAULT_DASHBOARD_LAYOUT.order] },
+});
+
+export const loadUserMeta = async (userId: string): Promise<UserMeta> => {
+  const cached = readJSON<UserMeta>(metaCacheKey(userId), emptyUserMeta());
 
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -445,25 +459,30 @@ export const loadUserMeta = async (userId: string): Promise<{ onboarding: Onboar
     const onboarding = normalizeOnboarding(metadata.onboarding) || cached.onboarding;
     const remoteWeights = normalizeBodyWeightLog(metadata.body_weight_log);
     const bodyWeightLog = remoteWeights.length ? remoteWeights : cached.bodyWeightLog;
-    const result = { onboarding, bodyWeightLog };
+    const dashboardLayout = normalizeDashboardLayout(metadata.dashboard_layout ?? cached.dashboardLayout);
+    const result = { onboarding, bodyWeightLog, dashboardLayout };
     writeJSON(metaCacheKey(userId), result);
     return result;
   } catch {
-    return cached;
+    return {
+      onboarding: cached.onboarding ?? null,
+      bodyWeightLog: cached.bodyWeightLog ?? [],
+      dashboardLayout: normalizeDashboardLayout(cached.dashboardLayout),
+    };
   }
 };
 
 export const saveUserMeta = async (
   userId: string,
-  data: { onboarding?: OnboardingData | null; body_weight_log?: BodyWeightEntry[] }
+  data: { onboarding?: OnboardingData | null; body_weight_log?: BodyWeightEntry[]; dashboard_layout?: DashboardLayout }
 ): Promise<boolean> => {
-  const cached = readJSON<{ onboarding: OnboardingData | null; bodyWeightLog: BodyWeightEntry[] }>(
-    metaCacheKey(userId),
-    { onboarding: null, bodyWeightLog: [] }
-  );
+  const cached = readJSON<UserMeta>(metaCacheKey(userId), emptyUserMeta());
   writeJSON(metaCacheKey(userId), {
     onboarding: data.onboarding !== undefined ? data.onboarding : cached.onboarding,
     bodyWeightLog: data.body_weight_log !== undefined ? data.body_weight_log : cached.bodyWeightLog,
+    dashboardLayout: data.dashboard_layout !== undefined
+      ? normalizeDashboardLayout(data.dashboard_layout)
+      : normalizeDashboardLayout(cached.dashboardLayout),
   });
 
   try {

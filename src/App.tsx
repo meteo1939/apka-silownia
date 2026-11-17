@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
+import { ToastProvider } from './components/ToastProvider';
+import { OfflineBanner } from './components/OfflineBanner';
 import './App.css';
 
 const Login = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
@@ -62,9 +64,12 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageFallback />}>
-        <AnimatedRoutes isAuthenticated={isAuthenticated} />
-      </Suspense>
+      <ToastProvider>
+        <OfflineBanner />
+        <Suspense fallback={<PageFallback />}>
+          <AnimatedRoutes isAuthenticated={isAuthenticated} />
+        </Suspense>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

@@ -162,6 +162,13 @@ export const Leaderboard = () => {
         </div>
       </header>
 
+      {viewMode === 'friends' && friends.length === 0 && (
+        <div className="card animate-fade-in" style={{ padding: '14px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px dashed var(--border-strong)' }}>
+          <UserPlus size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
+          <p style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>{t('leaderboard.friendsEmpty')}</p>
+        </div>
+      )}
+
       {/* ——— TOP 3 PODIUM ——— */}
       {fullBoard.length >= 3 && (
         <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', alignItems: 'flex-end', justifyContent: 'center' }}>

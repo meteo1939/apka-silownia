@@ -4,7 +4,19 @@ import { useAuthStore, EXP_TO_NEXT_LEVEL, generateRandomItem, getPrestigeRank } 
 import { Navigation } from '../components/Navigation';
 import { WorkoutHeatmap } from '../components/WorkoutHeatmap';
 import { Onboarding } from '../components/Onboarding';
-import { LogOut, Flame, Award, Edit2, Check, Shield, Sword, Crown, Zap, Ghost, Star, Skull, Package, Crosshair, Coins, ShoppingBag, X, AlertTriangle, Gift, ChevronRight, Settings, TrendingUp, Target, CalendarDays } from 'lucide-react';
+import { Modal } from '../components/Modal';
+import { useToast } from '../components/toastContext';
+import {
+  DEFAULT_DASHBOARD_LAYOUT,
+  getSectionOrder,
+  getVisibleSections,
+  getWideSections,
+  moveSection,
+  normalizeDashboardLayout,
+  toggleSection,
+  type DashboardSectionId,
+} from '../lib/dashboardLayout';
+import { LogOut, Flame, Award, Edit2, Check, Shield, Sword, Crown, Zap, Ghost, Star, Skull, Package, Crosshair, Coins, ShoppingBag, X, AlertTriangle, Gift, ChevronRight, Settings, TrendingUp, Target, CalendarDays, Dumbbell, Apple, Swords, SlidersHorizontal, GripVertical, ArrowUp, ArrowDown, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { useTranslation, translateItemName } from '../lib/translations';
 
 // ——— Avatars ———
@@ -28,6 +40,22 @@ const AVATAR_COLORS = [
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
+const QUICK_ACTIONS = [
+  { path: '/workout', key: 'dashboard.quickWorkout', icon: Dumbbell },
+  { path: '/calories', key: 'dashboard.quickMeal', icon: Apple },
+  { path: '/progress', key: 'dashboard.quickProgress', icon: TrendingUp },
+  { path: '/arena', key: 'dashboard.quickArena', icon: Swords },
+] as const;
+
+const SECTION_LABELS: Record<DashboardSectionId, string> = {
+  streak: 'dashboard.sectionStreak',
+  vitals: 'dashboard.sectionVitals',
+  heatmap: 'dashboard.sectionHeatmap',
+  achievements: 'dashboard.sectionAchievements',
+  equipment: 'dashboard.sectionEquipment',
+  muscles: 'dashboard.sectionMuscles',
+};
+
 const ACHIEVEMENT_LABELS: Record<string, { pl: string; en: string }> = {
   'First Steps': { pl: 'Pierwsze kroki', en: 'First Steps' },
   'Heavy Lifter': { pl: 'Ciężki zawodnik', en: 'Heavy Lifter' },
@@ -37,9 +65,6 @@ const ACHIEVEMENT_LABELS: Record<string, { pl: string; en: string }> = {
 const getNextMilestone = (streak: number) => {
   return STREAK_MILESTONES.find(m => m > streak) ?? null;
 };
-
-// ——— Toast Notification ———
-interface ToastMsg { id: number; text: string; color: string; icon?: string }
 
 // ——— Rarity helpers ———
 const getRarityColor = (rarity: string) => {
@@ -58,6 +83,7 @@ export const Dashboard = () => {
   const user = useAuthStore(state => state.user);
   const workoutLogs = useAuthStore(state => state.workoutLogs);
   const onboarding = useAuthStore(state => state.onboarding);
+  const dashboardLayout = useAuthStore(state => state.dashboardLayout);
   const logout = useAuthStore(state => state.logout);
   const updateProfile = useAuthStore(state => state.updateProfile);
   const checkStreak = useAuthStore(state => state.checkStreak);
@@ -65,20 +91,20 @@ export const Dashboard = () => {
   const unequipItem = useAuthStore(state => state.unequipItem);
   const deductCoins = useAuthStore(state => state.deductCoins);
   const lootItem = useAuthStore(state => state.lootItem);
+  const saveDashboardLayout = useAuthStore(state => state.saveDashboardLayout);
+  const toast = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editWeight, setEditWeight] = useState(user?.weight?.toString() || '70');
   const [editHeight, setEditHeight] = useState(user?.height?.toString() || '175');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
 
   // Confirm unequip modal
   const [unequipConfirm, setUnequipConfirm] = useState<'weapon' | 'armor' | 'accessory' | null>(null);
 
   // Loot / shop result modal
   const [lootModal, setLootModal] = useState<{ name: string; stat: string; value: number; rarity: string } | null>(null);
-
-  // Toast notifications
-  const [toasts, setToasts] = useState<ToastMsg[]>([]);
 
   // Modals state for logout confirmation and chest opening animation
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -104,17 +130,13 @@ export const Dashboard = () => {
   });
 
   useEffect(() => {
-    if (!unequipConfirm && !lootModal && !showLogoutConfirm && !showSettings) return;
+    if (!showAvatarPicker) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (unequipConfirm) setUnequipConfirm(null);
-      if (lootModal) setLootModal(null);
-      if (showLogoutConfirm) setShowLogoutConfirm(false);
-      if (showSettings) setShowSettings(false);
+      if (event.key === 'Escape') setShowAvatarPicker(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [unequipConfirm, lootModal, showLogoutConfirm, showSettings]);
+  }, [showAvatarPicker]);
 
   const handleOnboardingClose = () => {
     setShowOnboarding(false);
@@ -126,13 +148,6 @@ export const Dashboard = () => {
     }
   };
 
-  const showToast = (text: string, color = 'var(--accent)', icon = '✅') => {
-     
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, text, color, icon }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
-  };
-
   const currentIconId = user?.heroIcon || 'Shield';
   const CurrentIconNode = AVATARS.find(a => a.id === currentIconId)?.icon || Shield;
   const currentAvatarColor = AVATAR_COLORS.find(c => c.id === (user?.heroColor || 'magma'))?.value || '#f97316';
@@ -141,6 +156,20 @@ export const Dashboard = () => {
 
   if (!user) return null;
 
+  const layout = normalizeDashboardLayout(dashboardLayout);
+  const visibleSections = getVisibleSections(layout);
+  const wideSections = getWideSections(layout);
+  const sectionOrder = (id: DashboardSectionId) => getSectionOrder(layout, id);
+  const sectionClass = (id: DashboardSectionId) => `card dashboard-card${wideSections.has(id) ? ' dashboard-full' : ''}`;
+
+  const handleToggleSection = (id: DashboardSectionId) => {
+    if (!layout.hidden.includes(id) && visibleSections.length <= 1) {
+      toast({ text: t('dashboard.layoutMinOne'), tone: 'error' });
+      return;
+    }
+    void saveDashboardLayout(toggleSection(layout, id));
+  };
+
   const nextLevelExp = user.level >= 1000 ? 1 : EXP_TO_NEXT_LEVEL(user.level);
   const progressPercent = user.level >= 1000 ? 100 : Math.min(100, Math.round((user.totalExp / nextLevelExp) * 100));
 
@@ -148,7 +177,7 @@ export const Dashboard = () => {
     if (editWeight && editHeight) {
       updateProfile({ weight: Number(editWeight), height: Number(editHeight) });
       setIsEditing(false);
-      showToast(t('dashboard.profileUpdated'), 'var(--accent)', '✅');
+      toast({ text: t('dashboard.profileUpdated'), tone: 'success' });
     }
   };
 
@@ -183,7 +212,7 @@ export const Dashboard = () => {
         setLootModal({ name: item.name, stat: item.statBoost.stat, value: item.statBoost.value, rarity: item.rarity });
       }, 1500);
     } else {
-      showToast(t('dashboard.lootBoxOpenError'), 'var(--danger)', '💰');
+      toast({ text: t('dashboard.lootBoxOpenError'), tone: 'error' });
     }
   };
 
@@ -192,7 +221,7 @@ export const Dashboard = () => {
     if (unequipConfirm) {
       unequipItem(unequipConfirm);
       setUnequipConfirm(null);
-      showToast(t('dashboard.unequipToast'), 'var(--text-secondary)', '🛡️');
+      toast({ text: t('dashboard.unequipToast'), tone: 'info', icon: '🛡️' });
     }
   };
 
@@ -219,79 +248,71 @@ export const Dashboard = () => {
     `}} />
 
     {/* ——— CHEST OPENING ANIMATION OVERLAY ——— */}
-    {openingBox && (
-      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="card modal-card" style={{ padding: '40px 24px', width: '100%', maxWidth: '340px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="animate-chest-shake" style={{ fontSize: '64px', marginBottom: '24px', cursor: 'default' }}>
-            🎁
-          </div>
-          <h3 style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--text-primary)', fontWeight: 'bold' }}>
-            {t('dashboard.openingBoxTitle')}
-          </h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            {t('dashboard.openingBoxDesc')}
-          </p>
-        </div>
+    <Modal
+      open={Boolean(openingBox)}
+      onClose={() => undefined}
+      label={t('dashboard.openingBoxTitle')}
+      closeOnOverlay={false}
+      closeOnEscape={false}
+      cardStyle={{ padding: '40px 24px', width: '100%', maxWidth: '340px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div className="animate-chest-shake" style={{ fontSize: '64px', marginBottom: '24px', cursor: 'default' }}>
+        🎁
       </div>
-    )}
+      <h3 style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--text-primary)', fontWeight: 'bold' }}>
+        {t('dashboard.openingBoxTitle')}
+      </h3>
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+        {t('dashboard.openingBoxDesc')}
+      </p>
+    </Modal>
 
     {/* ——— LOGOUT CONFIRM MODAL ——— */}
-    {showLogoutConfirm && (
-      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="card modal-card" role="dialog" aria-modal="true" aria-label={t('dashboard.logoutConfirm')} style={{ padding: '24px', width: '100%', maxWidth: '360px', textAlign: 'center' }}>
-          <AlertTriangle size={28} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t('dashboard.logoutConfirm')}</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
-            {t('dashboard.logoutConfirmDesc')}
-          </p>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-secondary" autoFocus onClick={() => setShowLogoutConfirm(false)} style={{ flex: 1 }}>{t('common.cancel')}</button>
-            <button className="btn btn-primary" onClick={() => { setShowLogoutConfirm(false); logout(); }} style={{ flex: 1 }}>{t('dashboard.logout')}</button>
-          </div>
-        </div>
+    <Modal
+      open={showLogoutConfirm}
+      onClose={() => setShowLogoutConfirm(false)}
+      label={t('dashboard.logoutConfirm')}
+      cardStyle={{ padding: '24px', width: '100%', maxWidth: '360px', textAlign: 'center' }}
+    >
+      <AlertTriangle size={28} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
+      <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t('dashboard.logoutConfirm')}</h3>
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
+        {t('dashboard.logoutConfirmDesc')}
+      </p>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button className="btn btn-secondary" onClick={() => setShowLogoutConfirm(false)} style={{ flex: 1 }}>{t('common.cancel')}</button>
+        <button className="btn btn-primary" onClick={() => { setShowLogoutConfirm(false); logout(); }} style={{ flex: 1 }}>{t('dashboard.logout')}</button>
       </div>
-    )}
-    {/* ——— TOAST NOTIFICATIONS ——— */}
-    <div className="toast-stack" role="status" aria-live="polite">
-      {toasts.map(t => (
-        <div key={t.id} className="toast-item" style={{
-          background: 'var(--surface)',
-          border: `1px solid ${t.color}`,
-          borderRadius: '12px',
-          padding: '10px 14px',
-          display: 'flex', alignItems: 'center', gap: '8px',
-          boxShadow: 'var(--shadow-md)',
-          pointerEvents: 'none',
-          minWidth: '220px'
-        }}>
-          <span style={{ fontSize: '18px' }}>{t.icon}</span>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: t.color }}>{t.text}</span>
-        </div>
-      ))}
-    </div>
+    </Modal>
 
     {/* ——— UNEQUIP CONFIRM MODAL ——— */}
-    {unequipConfirm && (
-      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="card modal-card" role="dialog" aria-modal="true" aria-label={t('dashboard.unequipConfirm')} style={{ padding: '24px', width: '100%', maxWidth: '360px', border: '1px solid rgba(239, 68, 68, 0.45)', textAlign: 'center' }}>
-          <AlertTriangle size={28} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t('dashboard.unequipConfirm')}</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
-            {t('dashboard.unequipConfirmDesc')}
-          </p>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-secondary" autoFocus onClick={() => setUnequipConfirm(null)} style={{ flex: 1 }}>{t('common.cancel')}</button>
-            <button className="btn btn-primary" onClick={handleUnequipConfirmed} style={{ flex: 1, background: 'var(--danger)', borderColor: 'var(--danger)' }}>{t('dashboard.emptySlot')}</button>
-          </div>
-        </div>
+    <Modal
+      open={Boolean(unequipConfirm)}
+      onClose={() => setUnequipConfirm(null)}
+      label={t('dashboard.unequipConfirm')}
+      cardStyle={{ padding: '24px', width: '100%', maxWidth: '360px', border: '1px solid rgba(239, 68, 68, 0.45)', textAlign: 'center' }}
+    >
+      <AlertTriangle size={28} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
+      <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t('dashboard.unequipConfirm')}</h3>
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
+        {t('dashboard.unequipConfirmDesc')}
+      </p>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button className="btn btn-secondary" onClick={() => setUnequipConfirm(null)} style={{ flex: 1 }}>{t('common.cancel')}</button>
+        <button className="btn btn-primary" onClick={handleUnequipConfirmed} style={{ flex: 1, background: 'var(--danger)', borderColor: 'var(--danger)' }}>{t('dashboard.emptySlot')}</button>
       </div>
-    )}
+    </Modal>
 
     {/* ——— LOOT RESULT MODAL ——— */}
-    {lootModal && (
-      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="card modal-card" role="dialog" aria-modal="true" aria-label={t('dashboard.lootReward')} style={{ padding: '32px 24px', width: '100%', maxWidth: '360px', border: `1px solid ${getRarityColor(lootModal.rarity)}`, textAlign: 'center', position: 'relative' }}>
-          <button autoFocus aria-label={t('common.close')} onClick={() => setLootModal(null)} style={{ position: 'absolute', top: '12px', right: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+    <Modal
+      open={Boolean(lootModal)}
+      onClose={() => setLootModal(null)}
+      label={t('dashboard.lootReward')}
+      cardStyle={lootModal ? { padding: '32px 24px', width: '100%', maxWidth: '360px', border: `1px solid ${getRarityColor(lootModal.rarity)}`, textAlign: 'center', position: 'relative' } : undefined}
+    >
+      {lootModal && (
+        <>
+          <button aria-label={t('common.close')} onClick={() => setLootModal(null)} style={{ position: 'absolute', top: '12px', right: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <X size={18} />
           </button>
 
@@ -313,21 +334,24 @@ export const Dashboard = () => {
           <button className="btn btn-primary" onClick={() => setLootModal(null)} style={{ width: '100%' }}>
             {t('dashboard.lootReward')}
           </button>
-        </div>
-      </div>
-    )}
+        </>
+      )}
+    </Modal>
 
     <div className="container app-page page-dashboard page-transition">
 
       {/* ——— HEADER ——— */}
       <header className="dashboard-header dashboard-full" style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <div
+          <button
+            type="button"
             onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-            style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${currentAvatarColor}`, flexShrink: 0, cursor: 'pointer', transition: '0.2s' }}
+            aria-label={t('dashboard.heroIcon')}
+            aria-expanded={showAvatarPicker}
+            style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${currentAvatarColor}`, flexShrink: 0, cursor: 'pointer', padding: 0, transition: '0.2s' }}
           >
             <CurrentIconNode size={32} color="var(--accent-base)" />
-          </div>
+          </button>
           <div>
             <h1 className="text-gradient" style={{ fontSize: '23px', margin: 0, marginBottom: '4px' }}>
               {user.level >= 1000 ? t('dashboard.levelMax') : `${t('dashboard.level')} ${user.level}`}
@@ -359,6 +383,9 @@ export const Dashboard = () => {
               <Award size={16} color="var(--text-secondary)" />
               <span style={{ fontWeight: 'bold', fontSize: '13px' }}>{user.prestige || 0}</span>
             </div>
+            <button onClick={() => setShowCustomize(true)} style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.personalization')} aria-label={t('dashboard.personalization')}>
+              <SlidersHorizontal size={16} />
+            </button>
             <button onClick={() => setShowSettings(!showSettings)} style={{ background: showSettings ? 'var(--accent-soft)' : 'transparent', border: showSettings ? '1px solid var(--accent-border)' : '1px solid var(--border-color)', borderRadius: '8px', color: showSettings ? 'var(--accent-base)' : 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.settingsTitle')}>
               <Settings size={16} />
             </button>
@@ -368,6 +395,25 @@ export const Dashboard = () => {
           </div>
         </div>
       </header>
+
+      {/* ——— QUICK ACTIONS ——— */}
+      <nav className="quick-actions dashboard-full" aria-label={t('dashboard.quickActions')}>
+        {QUICK_ACTIONS.map(action => {
+          const Icon = action.icon;
+          return (
+            <button
+              key={action.path}
+              type="button"
+              className="quick-action"
+              onClick={() => navigate(action.path)}
+            >
+              <span className="quick-action-icon"><Icon size={18} /></span>
+              <span className="quick-action-text">{t(action.key)}</span>
+              <ChevronRight size={14} className="quick-action-chevron" />
+            </button>
+          );
+        })}
+      </nav>
 
       {showAvatarPicker && (
         <section className="animate-fade-in card dashboard-full" style={{ padding: '16px', marginBottom: '20px' }}>
@@ -379,7 +425,7 @@ export const Dashboard = () => {
               return (
                 <button
                   key={avatar.id}
-                  onClick={() => { updateProfile({ heroIcon: avatar.id }); showToast(t('dashboard.avatarChanged'), 'var(--accent)', '🎭'); }}
+                  onClick={() => { updateProfile({ heroIcon: avatar.id }); toast({ text: t('dashboard.avatarChanged'), tone: 'success', icon: '🎭' }); }}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', background: isSelected ? 'var(--accent-soft)' : 'var(--surface-hover)', border: isSelected ? '1px solid var(--accent-border)' : '1px solid transparent', borderRadius: '10px', cursor: 'pointer', transition: '0.2s all' }}
                 >
                   <Icon size={24} color={isSelected ? 'var(--accent)' : 'var(--text-muted)'} />
@@ -396,7 +442,7 @@ export const Dashboard = () => {
                 <button
                   key={col.id}
                   title={t('dashboard.colorNames.' + col.id, col.label)}
-                  onClick={() => { updateProfile({ heroColor: col.id }); showToast(t('dashboard.colorChanged'), 'var(--accent)', '🎨'); }}
+                  onClick={() => { updateProfile({ heroColor: col.id }); toast({ text: t('dashboard.colorChanged'), tone: 'success', icon: '🎨' }); }}
                   style={{
                     width: '36px', height: '36px', borderRadius: '50%',
                     background: col.value,
@@ -438,7 +484,9 @@ export const Dashboard = () => {
         </section>
       )}
 
-      {/* ——— STREAK SECTION ——— */}      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px', border: streak >= 7 ? '1px solid var(--accent-border)' : '1px solid var(--border-color)' }}>
+      {/* ——— STREAK SECTION ——— */}
+      {!layout.hidden.includes('streak') && (
+      <section className={sectionClass('streak')} style={{ padding: '20px', marginBottom: '20px', border: streak >= 7 ? '1px solid var(--accent-border)' : '1px solid var(--border-color)', order: sectionOrder('streak') }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Flame size={20} color="var(--accent)" />
@@ -476,9 +524,11 @@ export const Dashboard = () => {
         )}
         {!nextMilestone && <p style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>{t('dashboard.streakGoalAllDone')}</p>}
       </section>
+      )}
 
       {/* ——— VITAL STATS ——— */}
-      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
+      {!layout.hidden.includes('vitals') && (
+      <section className={sectionClass('vitals')} style={{ padding: '20px', marginBottom: '20px', order: sectionOrder('vitals') }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ fontSize: '17px', margin: 0 }}>{t('dashboard.physicalData')}</h3>
           <button onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-base)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', fontWeight: 600 }}>
@@ -535,9 +585,11 @@ export const Dashboard = () => {
           );
         })()}
       </section>
+      )}
 
       {/* ——— WORKOUT HEATMAP ——— */}
-      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
+      {!layout.hidden.includes('heatmap') && (
+      <section className={sectionClass('heatmap')} style={{ padding: '20px', marginBottom: '20px', order: sectionOrder('heatmap') }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CalendarDays size={19} color="var(--accent)" />
@@ -553,39 +605,19 @@ export const Dashboard = () => {
         </div>
         <WorkoutHeatmap history={workoutLogs} compact />
       </section>
+      )}
 
       {/* ——— SETTINGS MODAL OVERLAY ——— */}
-      {showSettings && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowSettings(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.75)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 150,
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            padding: '70px 24px 24px'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="card modal-card"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('dashboard.settingsTitle')}
-            style={{
-              padding: '24px',
-              width: '100%',
-              maxWidth: '380px',
-              position: 'relative'
-            }}
-          >
+      <Modal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        label={t('dashboard.settingsTitle')}
+        overlayStyle={{ alignItems: 'flex-start', padding: '70px 24px 24px' }}
+        cardStyle={{ padding: '24px', width: '100%', maxWidth: '380px', position: 'relative' }}
+      >
             <button
               onClick={() => setShowSettings(false)}
+              aria-label={t('common.close')}
               style={{
                 position: 'absolute',
                 top: '12px',
@@ -616,7 +648,7 @@ export const Dashboard = () => {
                       key={langItem.id}
                       onClick={() => {
                         updateProfile({ language: langItem.id });
-                        showToast(langItem.id === 'pl' ? 'Zmieniono język!' : 'Language changed!', 'var(--accent-base)', '🌐');
+                        toast({ text: langItem.id === 'pl' ? 'Zmieniono język!' : 'Language changed!', tone: 'success', icon: '🌐' });
                       }}
                       className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
                       style={{
@@ -633,12 +665,11 @@ export const Dashboard = () => {
                 })}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ——— ACHIEVEMENTS ——— */}
-      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
+      {!layout.hidden.includes('achievements') && (
+      <section className={sectionClass('achievements')} style={{ padding: '20px', marginBottom: '20px', order: sectionOrder('achievements') }}>
         <h3 style={{ fontSize: '17px', marginBottom: '12px' }}>{t('dashboard.achievements')}</h3>
         {(user.achievements || []).length > 0 ? (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -656,9 +687,11 @@ export const Dashboard = () => {
           </div>
         )}
       </section>
+      )}
 
       {/* ——— EQUIPMENT ——— */}
-      <section className="dashboard-full" style={{ marginBottom: '20px' }}>
+      {!layout.hidden.includes('equipment') && (
+      <section className="dashboard-full" style={{ marginBottom: '20px', order: sectionOrder('equipment') }}>
         <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>{t('dashboard.combatEquip')}</h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(88px, 1fr))', gap: '8px', marginBottom: '14px' }}>
@@ -697,7 +730,7 @@ export const Dashboard = () => {
               {inventory.map(item => (
                 <div
                   key={item.id}
-                  onClick={() => { equipItem(item.id, item.type); showToast(t('dashboard.itemEquippedToast').replace('{name}', translateItemName(item.name, lang)), getRarityColor(item.rarity), '⚔️'); }}
+                  onClick={() => { equipItem(item.id, item.type); toast({ text: t('dashboard.itemEquippedToast').replace('{name}', translateItemName(item.name, lang)), tone: 'success', icon: '⚔️' }); }}
                   style={{ padding: '10px', background: 'var(--surface-hover)', borderRadius: '10px', border: `1px solid ${getRarityColor(item.rarity)}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px', transition: '0.2s' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -738,9 +771,11 @@ export const Dashboard = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* ——— MUSCLE STATS ——— */}
-      <section className="dashboard-full">
+      {!layout.hidden.includes('muscles') && (
+      <section className="dashboard-full" style={{ order: sectionOrder('muscles') }}>
         <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>{t('dashboard.muscleStats')}</h3>
         <div className="muscle-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           {['Chest', 'Back', 'Legs', 'Arms', 'Core', 'Shoulders'].map((muscle) => {
@@ -772,6 +807,77 @@ export const Dashboard = () => {
           })}
         </div>
       </section>
+      )}
+
+      {/* ——— DASHBOARD PERSONALIZATION ——— */}
+      <Modal
+        open={showCustomize}
+        onClose={() => setShowCustomize(false)}
+        label={t('dashboard.personalization')}
+        cardStyle={{ padding: '22px', width: '100%', maxWidth: '440px' }}
+      >
+        <div className="layout-editor-head">
+          <div>
+            <h3 style={{ fontSize: '17px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <SlidersHorizontal size={18} color="var(--accent-base)" /> {t('dashboard.personalization')}
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.5 }}>{t('dashboard.personalizationDesc')}</p>
+          </div>
+          <button type="button" className="layout-editor-close" onClick={() => setShowCustomize(false)} aria-label={t('common.close')}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <ul className="layout-list">
+          {layout.order.map((id, index) => {
+            const isHidden = layout.hidden.includes(id);
+            return (
+              <li key={id} className={`layout-row${isHidden ? ' is-hidden' : ''}`}>
+                <GripVertical size={16} className="layout-row-grip" aria-hidden="true" />
+                <span className="layout-row-label">{t(SECTION_LABELS[id])}</span>
+                <div className="layout-row-actions">
+                  <button
+                    type="button"
+                    onClick={() => void saveDashboardLayout(moveSection(layout, id, -1))}
+                    disabled={index === 0}
+                    aria-label={t('dashboard.moveUp')}
+                    title={t('dashboard.moveUp')}
+                  >
+                    <ArrowUp size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveDashboardLayout(moveSection(layout, id, 1))}
+                    disabled={index === layout.order.length - 1}
+                    aria-label={t('dashboard.moveDown')}
+                    title={t('dashboard.moveDown')}
+                  >
+                    <ArrowDown size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className={isHidden ? undefined : 'is-on'}
+                    onClick={() => handleToggleSection(id)}
+                    aria-label={isHidden ? t('dashboard.showSection') : t('dashboard.hideSection')}
+                    title={isHidden ? t('dashboard.showSection') : t('dashboard.hideSection')}
+                  >
+                    {isHidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="layout-editor-footer">
+          <button type="button" className="btn btn-secondary" onClick={() => void saveDashboardLayout(DEFAULT_DASHBOARD_LAYOUT)}>
+            <RotateCcw size={14} /> {t('dashboard.resetLayout')}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => setShowCustomize(false)}>
+            {t('dashboard.layoutDone')}
+          </button>
+        </div>
+      </Modal>
 
     </div>
     <Navigation />
