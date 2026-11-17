@@ -1,5 +1,18 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
+import {
+  deleteWorkoutLog,
+  fetchWorkoutLogs,
+  getPendingWorkoutLogs,
+  loadUserMeta,
+  mergeBodyWeightLog,
+  saveUserMeta,
+  saveWorkoutLog,
+  toDateKey,
+  type BodyWeightEntry,
+  type OnboardingData,
+  type WorkoutLog,
+} from '../lib/workoutStorage';
 
 export interface MuscleStat {
   level: number;
@@ -49,14 +62,14 @@ export const generateRandomItem = (forcedRarity?: 'Common'|'Rare'|'Epic'|'Legend
 
   let rarity = forcedRarity;
   if (!rarity) {
-     let rRoll = Math.random();
+     const rRoll = Math.random();
      if (rRoll > 0.95) rarity = 'Legendary';
      else if (rRoll > 0.8) rarity = 'Epic';
      else if (rRoll > 0.5) rarity = 'Rare';
      else rarity = 'Common';
   }
 
-  let valMultiplier = rarity === 'Legendary' ? 5 : rarity === 'Epic' ? 3 : rarity === 'Rare' ? 1.5 : 1;
+  const valMultiplier = rarity === 'Legendary' ? 5 : rarity === 'Epic' ? 3 : rarity === 'Rare' ? 1.5 : 1;
   let baseVal = Math.floor(Math.random() * 10) + 5;
   if(stat === 'Crit' || stat === 'Dodge') baseVal = Math.floor(Math.random() * 3) + 1;
   const val = Math.round(baseVal * valMultiplier);
@@ -109,19 +122,30 @@ export interface UserProfile {
     accessory: Item | null;
   };
   prestige?: number;
-  coins?: number;
-  arenaFightsLeft?: number;
-  lastArenaReset?: string;
+  coins: number;
+  arenaFightsLeft: number;
+  lastArenaReset: string;
+  theme?: string;
+  language?: string;
 }
 
 interface AuthState {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  workoutLogs: WorkoutLog[];
+  workoutLogsLoading: boolean;
+  onboarding: OnboardingData | null;
+  bodyWeightLog: BodyWeightEntry[];
   login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, pass: string, username: string, height: number, weight: number) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   loadUserData: (userId: string) => Promise<void>;
+  loadWorkoutHistory: (userId?: string) => Promise<void>;
+  saveWorkout: (workout: WorkoutLog) => Promise<WorkoutLog>;
+  deleteWorkout: (workoutId: string) => Promise<void>;
+  saveOnboarding: (data: OnboardingData) => Promise<void>;
+  addBodyWeight: (weight: number, date?: string) => Promise<void>;
   initSession: () => Promise<void>;
   gainExp: (muscles: string[], amount: number) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -150,16 +174,16 @@ export const calculateBMR = (weight: number, height: number) => {
 
 export const getPrestigeRank = (prestige: number = 0) => {
   const RANKS = [
-    { name: 'Osiłek', color: '#9E9E9E', min: 0 },
-    { name: 'Adept', color: '#4CAF50', min: 200 },
-    { name: 'Wojownik', color: '#2196F3', min: 500 },
-    { name: 'Weteran', color: '#00BCD4', min: 1000 },
-    { name: 'Brązowy Gladiator', color: '#CD7F32', min: 2000 },
-    { name: 'Srebrny Gwardzista', color: '#B0BEC5', min: 3500 },
-    { name: 'Złoty Czempion', color: '#FFB300', min: 5500 },
-    { name: 'Diamentowy Tytan', color: '#00BFFF', min: 8000 },
-    { name: 'Mistrz Areny', color: '#9C27B0', min: 12000 },
-    { name: 'Żywa Legenda', color: '#F44336', min: 18000 },
+    { name: 'Osiłek', color: '#71767f', min: 0 },
+    { name: 'Adept', color: '#71767f', min: 200 },
+    { name: 'Wojownik', color: '#a3a8b0', min: 500 },
+    { name: 'Weteran', color: '#a3a8b0', min: 1000 },
+    { name: 'Brązowy Gladiator', color: '#a3a8b0', min: 2000 },
+    { name: 'Srebrny Gwardzista', color: '#eceef1', min: 3500 },
+    { name: 'Złoty Czempion', color: '#eceef1', min: 5500 },
+    { name: 'Diamentowy Tytan', color: '#eceef1', min: 8000 },
+    { name: 'Mistrz Areny', color: '#eceef1', min: 12000 },
+    { name: 'Żywa Legenda', color: '#eceef1', min: 18000 },
   ];
 
   for (let i = RANKS.length - 1; i >= 0; i--) {
@@ -168,14 +192,74 @@ export const getPrestigeRank = (prestige: number = 0) => {
   return RANKS[0];
 };
 
+// ——— Supabase row types ———
+interface ProfileRow {
+  id: string;
+  username: string;
+  height: number;
+  weight: number;
+  level: number;
+  total_exp: number;
+  streak: number;
+  consumed_calories: number;
+  last_login_date: string | null;
+  hero_icon: string | null;
+  coins: number;
+  prestige: number;
+  arena_fights_left: number;
+  last_arena_reset: string | null;
+  friends: string[] | null;
+  theme: string | null;
+  language: string | null;
+}
+
+type ProfileUpdateRow = Partial<Omit<ProfileRow, 'id'>> & { updated_at?: string };
+
+interface MuscleStatRow {
+  user_id: string;
+  muscle_name: string;
+  level: number;
+  exp: number;
+}
+
+interface InventoryRow {
+  id: string;
+  user_id: string;
+  name: string;
+  type: Item['type'];
+  rarity: Item['rarity'];
+  stat_boost_stat: Item['statBoost']['stat'];
+  stat_boost_value: number;
+}
+
+interface EquippedItemsRow {
+  user_id: string;
+  weapon_id: string | null;
+  armor_id: string | null;
+  accessory_id: string | null;
+}
+
+interface MealRow {
+  id: string;
+  user_id: string;
+  name: string;
+  calories: number;
+  logged_date: string;
+}
+
+interface AchievementRow {
+  user_id: string;
+  achievement_id: string;
+}
+
 // Helper: map DB row to UserProfile format
 const mapProfileFromDB = (
-  profile: any,
-  muscleStats: any[],
+  profile: ProfileRow,
+  muscleStats: MuscleStatRow[],
   achievements: string[],
   inventory: Item[],
-  equipped: any,
-  meals: any[]
+  equipped: UserProfile['equipped'],
+  meals: MealRow[]
 ): UserProfile => ({
   id: profile.id,
   username: profile.username,
@@ -186,14 +270,14 @@ const mapProfileFromDB = (
   streak: profile.streak,
   consumedCalories: profile.consumed_calories,
   lastLoginDate: profile.last_login_date,
-  heroIcon: profile.hero_icon,
+  heroIcon: profile.hero_icon || undefined,
   coins: profile.coins,
   prestige: profile.prestige,
   arenaFightsLeft: profile.arena_fights_left,
-  lastArenaReset: profile.last_arena_reset,
+  lastArenaReset: profile.last_arena_reset || '',
   friends: profile.friends || [],
   achievements,
-  muscleStats: muscleStats.reduce((acc: Record<string, MuscleStat>, ms: any) => {
+  muscleStats: muscleStats.reduce((acc: Record<string, MuscleStat>, ms) => {
     acc[ms.muscle_name] = { level: ms.level, exp: ms.exp };
     return acc;
   }, {}),
@@ -203,13 +287,19 @@ const mapProfileFromDB = (
     armor: equipped?.armor || null,
     accessory: equipped?.accessory || null,
   },
-  meals: meals.map((m: any) => ({ id: m.id, name: m.name, calories: m.calories })),
+  meals: meals.map(m => ({ id: m.id, name: m.name, calories: m.calories })),
+  theme: profile.theme || 'dark',
+  language: profile.language || 'pl',
 });
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  workoutLogs: [],
+  workoutLogsLoading: false,
+  onboarding: null,
+  bodyWeightLog: [],
 
   initSession: async () => {
     try {
@@ -243,13 +333,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      const [profileRes, muscleRes, achieveRes, inventoryRes, equippedRes, mealsRes] = await Promise.all([
+      const [profileRes, muscleRes, achieveRes, inventoryRes, equippedRes, mealsRes, meta] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
         supabase.from('muscle_stats').select('*').eq('user_id', userId),
         supabase.from('achievements').select('achievement_id').eq('user_id', userId),
         supabase.from('inventory').select('*').eq('user_id', userId),
         supabase.from('equipped_items').select('*').eq('user_id', userId).single(),
         supabase.from('meals').select('*').eq('user_id', userId).eq('logged_date', today),
+        loadUserMeta(userId),
       ]);
 
       if (profileRes.error || !profileRes.data) {
@@ -257,8 +348,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return;
       }
 
+      const profileRow = profileRes.data as ProfileRow;
+      const muscleRows = (muscleRes.data ?? []) as MuscleStatRow[];
+      const achievementRows = (achieveRes.data ?? []) as Pick<AchievementRow, 'achievement_id'>[];
+      const inventoryRows = (inventoryRes.data ?? []) as InventoryRow[];
+      const equippedRow = equippedRes.data as EquippedItemsRow | null;
+      const mealRows = (mealsRes.data ?? []) as MealRow[];
+
       // Map inventory items
-      const inventoryItems: Item[] = (inventoryRes.data || []).map((row: any) => ({
+      const inventoryItems: Item[] = inventoryRows.map(row => ({
         id: row.id,
         name: row.name,
         type: row.type,
@@ -267,12 +365,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }));
 
       // Map equipped items (resolve from inventory)
-      const equippedRow = equippedRes.data;
-      const equippedWeapon = equippedRow?.weapon_id ? (inventoryRes.data || []).find((i: any) => i.id === equippedRow.weapon_id) : null;
-      const equippedArmor = equippedRow?.armor_id ? (inventoryRes.data || []).find((i: any) => i.id === equippedRow.armor_id) : null;
-      const equippedAccessory = equippedRow?.accessory_id ? (inventoryRes.data || []).find((i: any) => i.id === equippedRow.accessory_id) : null;
+      const equippedWeapon = equippedRow?.weapon_id ? inventoryRows.find(i => i.id === equippedRow.weapon_id) : null;
+      const equippedArmor = equippedRow?.armor_id ? inventoryRows.find(i => i.id === equippedRow.armor_id) : null;
+      const equippedAccessory = equippedRow?.accessory_id ? inventoryRows.find(i => i.id === equippedRow.accessory_id) : null;
 
-      const mapItem = (row: any): Item | null => row ? ({
+      const mapItem = (row: InventoryRow | null | undefined): Item | null => row ? ({
         id: row.id, name: row.name, type: row.type, rarity: row.rarity,
         statBoost: { stat: row.stat_boost_stat, value: row.stat_boost_value }
       }) : null;
@@ -283,21 +380,153 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         accessory: mapItem(equippedAccessory),
       };
 
-      const achievements = (achieveRes.data || []).map((a: any) => a.achievement_id);
-      const meals = mealsRes.data || [];
+      const achievements = achievementRows.map(a => a.achievement_id);
+      const meals = mealRows;
 
       const userProfile = mapProfileFromDB(
-        profileRes.data,
-        muscleRes.data || [],
+        profileRow,
+        muscleRows,
         achievements,
         inventoryItems,
         equipped,
         meals
       );
 
-      set({ user: userProfile, isAuthenticated: true, isLoading: false });
+      const bodyWeightLog = meta.bodyWeightLog.length
+        ? meta.bodyWeightLog
+        : [{ date: today, weight: userProfile.weight || 70 }];
+
+      set({
+        user: userProfile,
+        isAuthenticated: true,
+        isLoading: false,
+        onboarding: meta.onboarding,
+        bodyWeightLog,
+      });
+      void get().loadWorkoutHistory(userId);
     } catch {
       set({ isLoading: false });
+    }
+  },
+
+  loadWorkoutHistory: async (userIdParam?: string) => {
+    const userId = userIdParam || get().user?.id;
+    if (!userId) return;
+
+    set({ workoutLogsLoading: true });
+    try {
+      const pendingBefore = getPendingWorkoutLogs(userId);
+      const workoutLogs = await fetchWorkoutLogs(userId);
+      set({ workoutLogs, workoutLogsLoading: false });
+
+      const syncedIds = new Set(
+        workoutLogs.filter(item => !item.pendingSync).map(item => item.id)
+      );
+      const syncedSignatures = new Set(
+        workoutLogs
+          .filter(item => !item.pendingSync)
+          .map(item => `${item.name}|${item.completedAt}`)
+      );
+      const newlySynced = pendingBefore.filter(item => (
+        syncedIds.has(item.id) || syncedSignatures.has(`${item.name}|${item.completedAt}`)
+      ));
+      for (const workout of newlySynced) {
+        await get().gainExp(workout.muscles, workout.expGained);
+
+        const current = get().user;
+        if (!current) continue;
+        const owned = current.achievements || [];
+        const syncedCount = get().workoutLogs.filter(item => !item.pendingSync).length;
+        if (!owned.includes('First Steps') && syncedCount <= 1) {
+          await get().awardAchievement('First Steps');
+        }
+        if (workout.totalVolume > 1000 && !owned.includes('Heavy Lifter')) {
+          await get().awardAchievement('Heavy Lifter');
+        }
+        if (workout.prs.length > 0 && !owned.includes('PR Hunter')) {
+          await get().awardAchievement('PR Hunter');
+        }
+      }
+    } catch {
+      set({ workoutLogsLoading: false });
+    }
+  },
+
+  saveWorkout: async (workout) => {
+    const { user } = get();
+    if (!user) return workout;
+
+    const saved = await saveWorkoutLog(user.id, workout);
+    set(state => ({
+      workoutLogs: [
+        saved,
+        ...state.workoutLogs.filter(item => item.id !== saved.id),
+      ].sort((a, b) => b.completedAt.localeCompare(a.completedAt)),
+    }));
+
+    // Offline saves are granted EXP only after the sync succeeds.
+    if (!saved.pendingSync) {
+      await get().gainExp(saved.muscles, saved.expGained);
+
+      const current = get().user;
+      if (current) {
+        if (current.totalExp === 0 && !(current.achievements || []).includes('First Steps')) {
+          await get().awardAchievement('First Steps');
+        }
+        if (saved.totalVolume > 1000 && !(current.achievements || []).includes('Heavy Lifter')) {
+          await get().awardAchievement('Heavy Lifter');
+        }
+        if (saved.prs.length > 0 && !(current.achievements || []).includes('PR Hunter')) {
+          await get().awardAchievement('PR Hunter');
+        }
+      }
+    }
+
+    return saved;
+  },
+
+  deleteWorkout: async (workoutId) => {
+    const { user } = get();
+    if (!user) return;
+
+    await deleteWorkoutLog(user.id, workoutId);
+    set(state => ({
+      workoutLogs: state.workoutLogs.filter(item => item.id !== workoutId),
+    }));
+  },
+
+  saveOnboarding: async (data) => {
+    const { user, bodyWeightLog } = get();
+    if (!user) return;
+
+    set({ onboarding: data });
+    const weights = bodyWeightLog.length
+      ? bodyWeightLog
+      : [{ date: toDateKey(new Date()), weight: user.weight || 70 }];
+    set({ bodyWeightLog: weights });
+    await saveUserMeta(user.id, { onboarding: data, body_weight_log: weights });
+  },
+
+  addBodyWeight: async (weight, date) => {
+    const { user, bodyWeightLog } = get();
+    if (!user || !Number.isFinite(weight) || weight <= 0) return;
+
+    const entryDate = date || toDateKey(new Date());
+    const updated = mergeBodyWeightLog(bodyWeightLog, weight, entryDate);
+    set({ bodyWeightLog: updated });
+    await saveUserMeta(user.id, { body_weight_log: updated });
+
+    if (entryDate === toDateKey(new Date()) && weight !== user.weight) {
+      const { error } = await supabase.from('profiles').update({
+        weight,
+        updated_at: new Date().toISOString(),
+      }).eq('id', user.id);
+      if (error) {
+        console.error('Nie udało się zapisać masy ciała:', error);
+      }
+      set(state => ({
+        user: state.user ? { ...state.user, weight } : null,
+      }));
     }
   },
 
@@ -306,7 +535,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
       if (error) return { success: false, error: 'Nieprawidłowy email lub hasło.' };
       return { success: true };
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Błąd logowania:', e);
       return { success: false, error: 'Brak połączenia z internetem lub serwerem (Failed to fetch).' };
     }
@@ -358,8 +587,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
         return { success: false, error: errMsg };
       }
+      try {
+        sessionStorage.setItem('fitquest_new_signup', '1');
+      } catch {
+        // Session storage may be unavailable; onboarding still shows as a dashboard card.
+      }
       return { success: true };
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Błąd rejestracji:', e);
       return { success: false, error: 'Brak połączenia z internetem lub serwerem (Failed to fetch). Upewnij się, że masz połączenie z siecią i poprawnie skonfigurowany plik .env.' };
     }
@@ -367,14 +601,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   logout: async () => {
     await supabase.auth.signOut();
-    set({ user: null, isAuthenticated: false });
+    set({
+      user: null,
+      isAuthenticated: false,
+      workoutLogs: [],
+      workoutLogsLoading: false,
+      onboarding: null,
+      bodyWeightLog: [],
+    });
   },
 
   updateProfile: async (updates) => {
     const { user } = get();
     if (!user) return;
 
-    const dbUpdates: any = {};
+    const dbUpdates: ProfileUpdateRow = {};
     if (updates.username !== undefined) dbUpdates.username = updates.username;
     if (updates.height !== undefined) dbUpdates.height = updates.height;
     if (updates.weight !== undefined) dbUpdates.weight = updates.weight;
@@ -389,10 +630,24 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (updates.arenaFightsLeft !== undefined) dbUpdates.arena_fights_left = updates.arenaFightsLeft;
     if (updates.lastArenaReset !== undefined) dbUpdates.last_arena_reset = updates.lastArenaReset;
     if (updates.friends !== undefined) dbUpdates.friends = updates.friends;
+    if (updates.theme !== undefined) dbUpdates.theme = updates.theme;
+    if (updates.language !== undefined) dbUpdates.language = updates.language;
     dbUpdates.updated_at = new Date().toISOString();
 
-    await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
+    const { error: updateError } = await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
+    if (updateError) {
+      console.error('Nie udało się zapisać profilu:', updateError);
+    }
     set(state => ({ user: state.user ? { ...state.user, ...updates } : null }));
+
+    if (
+      updates.weight !== undefined &&
+      Number.isFinite(updates.weight) &&
+      updates.weight > 0 &&
+      updates.weight !== user.weight
+    ) {
+      await get().addBodyWeight(updates.weight);
+    }
   },
 
   checkStreak: async () => {
@@ -436,7 +691,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     muscles.forEach(m => {
       if (updatedMuscleStats[m]) {
-        let ms = { ...updatedMuscleStats[m] };
+        const ms = { ...updatedMuscleStats[m] };
         ms.exp += amount;
         while (ms.level < 1000 && ms.exp >= EXP_TO_NEXT_LEVEL(ms.level)) {
           ms.exp -= EXP_TO_NEXT_LEVEL(ms.level);
@@ -449,17 +704,25 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     });
 
     // Update DB
-    await supabase.from('profiles').update({
+    const { error: profileError } = await supabase.from('profiles').update({
       level: newLevel,
       total_exp: newTotalExp,
       updated_at: new Date().toISOString()
     }).eq('id', user.id);
 
+    if (profileError) {
+      console.error('Nie udało się zapisać EXP profilu:', profileError);
+      return;
+    }
+
     for (const mu of muscleUpdates) {
-      await supabase.from('muscle_stats')
+      const { error: muscleError } = await supabase.from('muscle_stats')
         .update({ level: mu.level, exp: mu.exp })
         .eq('user_id', user.id)
         .eq('muscle_name', mu.muscle_name);
+      if (muscleError) {
+        console.error(`Nie udało się zapisać EXP mięśnia ${mu.muscle_name}:`, muscleError);
+      }
     }
 
     set(state => ({
@@ -477,7 +740,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!user) return;
     if ((user.achievements || []).includes(achievementId)) return;
 
-    await supabase.from('achievements').insert({ user_id: user.id, achievement_id: achievementId });
+    const { error } = await supabase.from('achievements').insert({ user_id: user.id, achievement_id: achievementId });
+    if (error && error.code !== '23505') {
+      console.error('Nie udało się przyznać osiągnięcia:', error);
+      return;
+    }
     set(state => ({
       user: state.user ? {
         ...state.user,
@@ -491,12 +758,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!user) return;
 
     const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase.from('meals').insert({
+    const { data, error } = await supabase.from('meals').insert({
       user_id: user.id,
       name,
       calories,
       logged_date: today
     }).select().single();
+
+    if (error) {
+      console.error('Nie udało się zapisać posiłku:', error);
+      return;
+    }
 
     if (data) {
       const newMeal = { id: data.id, name, calories };
@@ -519,12 +791,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const { user } = get();
     if (!user) return;
 
-    await supabase.from('meals').delete().eq('id', id);
+    const { error: deleteError } = await supabase.from('meals').delete().eq('id', id);
+    if (deleteError) {
+      console.error('Nie udało się usunąć posiłku:', deleteError);
+    }
     const newCalories = Math.max(0, (user.consumedCalories || 0) - calories);
-    await supabase.from('profiles').update({
+    const { error: profileError } = await supabase.from('profiles').update({
       consumed_calories: newCalories,
       updated_at: new Date().toISOString()
     }).eq('id', user.id);
+    if (profileError) {
+      console.error('Nie udało się zaktualizować kalorii:', profileError);
+    }
 
     set(state => ({
       user: state.user ? {
@@ -554,7 +832,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const { user } = get();
     if (!user) return;
 
-    await supabase.from('inventory').insert({
+    const { error } = await supabase.from('inventory').insert({
       id: item.id,
       user_id: user.id,
       name: item.name,
@@ -563,6 +841,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       stat_boost_stat: item.statBoost.stat,
       stat_boost_value: item.statBoost.value
     });
+
+    if (error) {
+      console.error('Nie udało się dodać przedmiotu do ekwipunku:', error);
+      return;
+    }
 
     set(state => ({
       user: state.user ? {
@@ -582,11 +865,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!itemToEquip) return;
 
     const currentInSlot = equipped[slot];
-    let newInventory = inventory.filter(i => i.id !== itemId);
+    const newInventory = inventory.filter(i => i.id !== itemId);
     if (currentInSlot) newInventory.push(currentInSlot);
 
     const slotColumn = slot === 'weapon' ? 'weapon_id' : slot === 'armor' ? 'armor_id' : 'accessory_id';
-    await supabase.from('equipped_items').update({ [slotColumn]: itemId }).eq('user_id', user.id);
+    const { error } = await supabase
+      .from('equipped_items')
+      .upsert({ user_id: user.id, [slotColumn]: itemId }, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('Nie udało się założyć przedmiotu:', error);
+      return;
+    }
 
     set(state => ({
       user: state.user ? {
@@ -606,7 +896,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!itemToUnequip) return;
 
     const slotColumn = slot === 'weapon' ? 'weapon_id' : slot === 'armor' ? 'armor_id' : 'accessory_id';
-    await supabase.from('equipped_items').update({ [slotColumn]: null }).eq('user_id', user.id);
+    const { error } = await supabase
+      .from('equipped_items')
+      .upsert({ user_id: user.id, [slotColumn]: null }, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('Nie udało się zdjąć przedmiotu:', error);
+      return;
+    }
 
     set(state => ({
       user: state.user ? {

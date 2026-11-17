@@ -1,74 +1,93 @@
-import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Dumbbell, User, Trophy, Apple, Swords } from 'lucide-react';
+import { Dumbbell, User, Trophy, Apple, Swords, Flame, Coins, TrendingUp } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
+import { useTranslation } from '../lib/translations';
+
+const NAV_ITEMS = [
+  { path: '/', key: 'navigation.dashboard', icon: User },
+  { path: '/calories', key: 'navigation.calories', icon: Apple },
+  { path: '/workout', key: 'navigation.workout', icon: Dumbbell },
+  { path: '/progress', key: 'navigation.progress', icon: TrendingUp },
+  { path: '/arena', key: 'navigation.arena', icon: Swords },
+  { path: '/leaderboard', key: 'navigation.leaderboard', icon: Trophy },
+];
 
 export const Navigation = () => {
+  const { t, lang } = useTranslation();
   const location = useLocation();
-  const [visible, setVisible] = useState(true);
-  const lastScrollY = useRef(0);
+  const user = useAuthStore(state => state.user);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Scrolling down and past threshold -> hide
-      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        setVisible(false);
-      } else {
-        // Scrolling up -> show
-        setVisible(true);
-      }
-      
-      lastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-  
-  const getStyle = (path: string) => {
-    const isActive = location.pathname === path;
-    return {
-      color: isActive ? 'var(--accent-base)' : 'var(--text-muted)',
-      display: 'flex', 
-      flexDirection: 'column' as const, 
-      alignItems: 'center', 
-      textDecoration: 'none', 
-      gap: '4px'
-    };
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
   };
 
   return (
-    <nav style={{
-      position: 'fixed', bottom: '16px', left: '16px', right: '16px', margin: '0 auto', maxWidth: '448px',
-      display: 'flex', justifyContent: 'space-around', padding: '12px 0', zIndex: 50,
-      background: 'var(--surface-color)',
-      border: '1px solid var(--border-color)',
-      borderRadius: 'var(--radius-lg)',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-      transform: visible ? 'translateY(0)' : 'translateY(120%)',
-      transition: 'transform 0.3s ease-in-out',
-    }}>
-      <Link to="/" style={getStyle('/')}>
-        <User size={24} />
-        <span style={{ fontSize: '12px', fontWeight: location.pathname === '/' ? 600 : 500 }}>Profile</span>
-      </Link>
-      <Link to="/calories" style={getStyle('/calories')}>
-        <Apple size={24} />
-        <span style={{ fontSize: '12px', fontWeight: location.pathname === '/calories' ? 600 : 500 }}>Calories</span>
-      </Link>
-      <Link to="/workout" style={getStyle('/workout')}>
-        <Dumbbell size={24} />
-        <span style={{ fontSize: '12px', fontWeight: location.pathname === '/workout' ? 600 : 500 }}>Workout</span>
-      </Link>
-      <Link to="/arena" style={getStyle('/arena')}>
-        <Swords size={24} />
-        <span style={{ fontSize: '12px', fontWeight: location.pathname === '/arena' ? 600 : 500 }}>Arena</span>
-      </Link>
-      <Link to="/leaderboard" style={getStyle('/leaderboard')}>
-        <Trophy size={24} />
-        <span style={{ fontSize: '12px', fontWeight: location.pathname === '/leaderboard' ? 600 : 500 }}>Rank</span>
-      </Link>
-    </nav>
+    <>
+      {/* ——— Desktop / web navigation ——— */}
+      <header className="nav-desktop">
+        <div className="nav-desktop-inner">
+          <Link to="/" className="nav-logo" aria-label="FitQuest — strona główna">
+            <span className="nav-logo-icon">
+              <Dumbbell size={17} />
+            </span>
+            <span>FitQuest</span>
+          </Link>
+
+          <nav className="nav-links" aria-label={lang === 'pl' ? 'Nawigacja główna' : 'Main navigation'}>
+            {NAV_ITEMS.map(item => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`nav-link${active ? ' is-active' : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <Icon size={15} />
+                  <span>{t(item.key)}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {user && (
+            <div className="nav-user">
+              <span className="nav-user-name">{user.username}</span>
+              <span className="nav-user-meta" title={t('dashboard.streakTitle')}>
+                <Flame size={14} />
+                {user.streak || 1}
+              </span>
+              <span className="nav-user-meta" title={t('dashboard.shop')}>
+                <Coins size={14} />
+                {user.coins || 0}
+              </span>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ——— Mobile navigation ——— */}
+      <nav className="nav-mobile" aria-label={lang === 'pl' ? 'Nawigacja główna' : 'Main navigation'}>
+        <div className="nav-mobile-inner">
+          {NAV_ITEMS.map(item => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`nav-mobile-link${active ? ' is-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={21} />
+                <span>{t(item.key)}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 };

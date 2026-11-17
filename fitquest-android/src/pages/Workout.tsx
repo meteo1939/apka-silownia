@@ -1,36 +1,39 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  Check,
+  ChevronDown,
+  Clock,
+  Dumbbell,
+  Package,
+  Play,
+  Plus,
+  RotateCcw,
+  Search,
+  Star,
+  Trash2,
+  Trophy,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useAuthStore, generateRandomItem } from '../store/useAuthStore';
 import { Navigation } from '../components/Navigation';
-import { CheckCircle, BookOpen, Trash2, Search, X, Trophy, Zap, Star, Package } from 'lucide-react';
-
-const MUSCLE_TRANSLATIONS: Record<string, string> = {
-  All: 'Wszystkie',
-  Chest: 'Klatka',
-  Back: 'Plecy',
-  Legs: 'Nogi',
-  Arms: 'Ramiona',
-  Shoulders: 'Barki',
-  Core: 'Brzuch'
-};
-
-const WORKOUT_PLANS = [
-  { id: 'ppl', name: 'Push, Pull, Legs (PPL)', desc: 'Klasyczny podział 3-dniowy dzielący ruchy na wypychające (Push), przyciągające (Pull) i nogi (Legs). Bardzo zbalansowany.', level: 'Średni', days: 3 },
-  { id: 'fbw', name: 'Full Body Workout (FBW)', desc: 'Trening całego ciała podczas jednej sesji. Idealny dla osób początkujących i tych z ograniczonym czasem.', level: 'Początkujący', days: 3 },
-  { id: 'upper_lower', name: 'Góra / Dół (Upper/Lower)', desc: '4-dniowy split dzielący trening na górne i dolne partie ciała. Pozwala na optymalną częstotliwość regeneracji.', level: 'Średni', days: 4 },
-  { id: 'bro_split', name: 'Trening Klatki i Bicepsa', desc: 'Klasyczny kulturystyczny podział skupiający całą energię na maksymalnym spompowaniu określonych partii.', level: 'Zaawansowany', days: 5 },
-];
-
-interface ExerciseSet {
-  reps: number;
-  weight: number;
-}
-
-interface LoggedExercise {
-  name: string;
-  muscle: string;
-  sets: ExerciseSet[];
-}
+import { useTranslation, translateExerciseName, translateExerciseDesc, translateItemName } from '../lib/translations';
+import { pluralize } from '../lib/plural';
+import {
+  clearActiveWorkout,
+  computeSessionStats,
+  getBestSet,
+  getLastExerciseRecord,
+  getProgressionSuggestion,
+  readActiveWorkout,
+  writeActiveWorkout,
+  type ActiveWorkout,
+  type WorkoutExerciseLog,
+  type WorkoutLog,
+  type WorkoutPr,
+  type WorkoutSetLog,
+} from '../lib/workoutStorage';
 
 const EXERCISE_DB = [
   // Klatka piersiowa
@@ -66,546 +69,1192 @@ const EXERCISE_DB = [
   // Brzuch
   { name: 'Skłony tułowia (brzuszki)', muscle: 'Core', desc: 'Podstawowe ćwiczenie wzmacniające mięsień prosty brzucha.' },
   { name: 'Plank (Deska)', muscle: 'Core', desc: 'Izometryczne ćwiczenie stabilizujące głębokie mięśnie brzucha i korpusu.' },
-  { name: 'Wznosy nóg w zwisie', muscle: 'Core', desc: 'Wymagające ćwiczenie silnie angażujące dolne partie brzucha.' }
+  { name: 'Wznosy nóg w zwisie', muscle: 'Core', desc: 'Wymagające ćwiczenie silnie angażujące dolne partie brzucha.' },
 ];
 
-const PLAN_TEMPLATES: Record<string, LoggedExercise[]> = {
+const WORKOUT_PLANS = [
+  { id: 'fbw', level: 'Początkujący', days: 3 },
+  { id: 'home', level: 'Początkujący', days: 3 },
+  { id: 'dumbbell', level: 'Średni', days: 3 },
+  { id: 'ppl', level: 'Średni', days: 3 },
+  { id: 'upper_lower', level: 'Średni', days: 4 },
+  { id: 'bro_split', level: 'Zaawansowany', days: 5 },
+];
+
+interface PlanExerciseTemplate {
+  name: string;
+  muscle: string;
+  sets: number;
+  reps: number;
+}
+
+const PLAN_TEMPLATES: Record<string, PlanExerciseTemplate[]> = {
   ppl: [
-    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-    { name: 'Pompki klasyczne', muscle: 'Chest', sets: [{reps: 15, weight: 0}, {reps: 15, weight: 0}] },
-    { name: 'Wyciskanie żołnierskie', muscle: 'Shoulders', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-    { name: 'Prostowanie ramion na wyciągu (triceps)', muscle: 'Arms', sets: [{reps: 12, weight: 0}, {reps: 12, weight: 0}] },
+    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: 3, reps: 10 },
+    { name: 'Pompki klasyczne', muscle: 'Chest', sets: 2, reps: 15 },
+    { name: 'Wyciskanie żołnierskie', muscle: 'Shoulders', sets: 3, reps: 10 },
+    { name: 'Prostowanie ramion na wyciągu (triceps)', muscle: 'Arms', sets: 3, reps: 12 },
   ],
   fbw: [
-    { name: 'Przysiad ze sztangą', muscle: 'Legs', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-    { name: 'Podciąganie na drążku', muscle: 'Back', sets: [{reps: 8, weight: 0}, {reps: 8, weight: 0}, {reps: 8, weight: 0}] },
-    { name: 'Wyciskanie żołnierskie', muscle: 'Shoulders', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}] },
+    { name: 'Przysiad ze sztangą', muscle: 'Legs', sets: 3, reps: 10 },
+    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: 3, reps: 10 },
+    { name: 'Podciąganie na drążku', muscle: 'Back', sets: 3, reps: 8 },
+    { name: 'Wyciskanie żołnierskie', muscle: 'Shoulders', sets: 3, reps: 10 },
+    { name: 'Plank (Deska)', muscle: 'Core', sets: 3, reps: 30 },
   ],
   upper_lower: [
-    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: [{reps: 8, weight: 0}, {reps: 8, weight: 0}, {reps: 8, weight: 0}] },
-    { name: 'Wiosłowanie sztangą w opadzie', muscle: 'Back', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-    { name: 'Uginanie przedramion z hantlami', muscle: 'Arms', sets: [{reps: 12, weight: 0}, {reps: 12, weight: 0}] },
-    { name: 'Przysiad ze sztangą', muscle: 'Legs', sets: [{reps: 8, weight: 0}, {reps: 8, weight: 0}, {reps: 8, weight: 0}] },
+    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: 3, reps: 8 },
+    { name: 'Wiosłowanie sztangą w opadzie', muscle: 'Back', sets: 3, reps: 10 },
+    { name: 'Uginanie przedramion z hantlami', muscle: 'Arms', sets: 3, reps: 12 },
+    { name: 'Przysiad ze sztangą', muscle: 'Legs', sets: 3, reps: 8 },
+    { name: 'Martwy ciąg rumuński', muscle: 'Legs', sets: 3, reps: 10 },
   ],
   bro_split: [
-    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-    { name: 'Rozpiętki z hantlami', muscle: 'Chest', sets: [{reps: 12, weight: 0}, {reps: 12, weight: 0}, {reps: 12, weight: 0}] },
-    { name: 'Wyciskanie hantli na skosie dodatnim', muscle: 'Chest', sets: [{reps: 10, weight: 0}, {reps: 10, weight: 0}] },
-  ]
+    { name: 'Wyciskanie sztangi leżąc', muscle: 'Chest', sets: 4, reps: 10 },
+    { name: 'Rozpiętki z hantlami', muscle: 'Chest', sets: 3, reps: 12 },
+    { name: 'Wyciskanie hantli na skosie dodatnim', muscle: 'Chest', sets: 3, reps: 10 },
+    { name: 'Uginanie przedramion z hantlami', muscle: 'Arms', sets: 3, reps: 12 },
+    { name: 'Uginanie młotkowe z hantlami', muscle: 'Arms', sets: 3, reps: 12 },
+  ],
+  home: [
+    { name: 'Pompki klasyczne', muscle: 'Chest', sets: 3, reps: 15 },
+    { name: 'Plank (Deska)', muscle: 'Core', sets: 3, reps: 30 },
+    { name: 'Skłony tułowia (brzuszki)', muscle: 'Core', sets: 3, reps: 20 },
+  ],
+  dumbbell: [
+    { name: 'Rozpiętki z hantlami', muscle: 'Chest', sets: 3, reps: 12 },
+    { name: 'Wiosłowanie sztangą w opadzie', muscle: 'Back', sets: 3, reps: 10 },
+    { name: 'Uginanie przedramion z hantlami', muscle: 'Arms', sets: 3, reps: 12 },
+    { name: 'Wznosy hantli bokiem', muscle: 'Shoulders', sets: 3, reps: 12 },
+  ],
+};
+
+const MUSCLE_TABS = ['All', 'Chest', 'Back', 'Legs', 'Arms', 'Shoulders', 'Core'];
+
+interface WorkoutResult {
+  exp: number;
+  muscles: string[];
+  volume: number;
+  sets: number;
+  duration: number;
+  prs: WorkoutPr[];
+  loot: { name: string; stat: string; value: number; rarity: string } | null;
+}
+
+const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
+
+const formatClock = (seconds: number): string => {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const secs = safe % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
+};
+
+const formatDurationLabel = (seconds: number): string => {
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))} s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 };
 
 export const Workout = () => {
-  const location = useLocation();
-  const [exercises, setExercises] = useState<LoggedExercise[]>(() => {
-    const planId = location.state?.planId as string;
-    return planId && PLAN_TEMPLATES[planId] 
-      ? JSON.parse(JSON.stringify(PLAN_TEMPLATES[planId])) 
-      : [];
-  });
-  
-  const [activeMuscleTab, setActiveMuscleTab] = useState('All');
-  const [exerciseSearch, setExerciseSearch] = useState('');
-  const [selectedPlanPreview, setSelectedPlanPreview] = useState<typeof WORKOUT_PLANS[0] | null>(null);
-
-  // Workout Result Modal state
-  const [workoutResult, setWorkoutResult] = useState<{
-    exp: number;
-    muscles: string[];
-    volume: number;
-    sets: number;
-    loot: { name: string; stat: string; value: number; rarity: string } | null;
-  } | null>(null);
-
-  const gainExp = useAuthStore(state => state.gainExp);
+  const { t, lang } = useTranslation();
+  const locale = lang === 'pl' ? 'pl-PL' : 'en-US';
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleLoadPlan = (planId: string) => {
-    if (PLAN_TEMPLATES[planId]) {
-      setExercises(JSON.parse(JSON.stringify(PLAN_TEMPLATES[planId])));
-      setSelectedPlanPreview(null);
-    }
+  const workoutNoun = (count: number) => pluralize(count, lang, [
+    t('progress.workoutSingular'),
+    t('progress.workoutPlural'),
+    t('workout.workoutsCount'),
+  ]);
+  const setNoun = (count: number) => pluralize(count, lang, [
+    t('workout.setsSingular'),
+    t('workout.setsFew'),
+    t('workout.setsUnit'),
+  ]);
+  const exerciseNoun = (count: number) => pluralize(count, lang, [
+    t('workout.exercisesSingular'),
+    t('workout.exercisesFew'),
+    t('workout.exercisesUnit'),
+  ]);
+
+  const user = useAuthStore(state => state.user);
+  const history = useAuthStore(state => state.workoutLogs);
+  const historyLoading = useAuthStore(state => state.workoutLogsLoading);
+  const saveWorkoutAction = useAuthStore(state => state.saveWorkout);
+  const deleteWorkoutAction = useAuthStore(state => state.deleteWorkout);
+  const lootItem = useAuthStore(state => state.lootItem);
+  const onboarding = useAuthStore(state => state.onboarding);
+
+  const [active, setActive] = useState<ActiveWorkout | null>(() => (
+    user ? readActiveWorkout(user.id) : null
+  ));
+  const [now, setNow] = useState(() => Date.now());
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [restLength, setRestLength] = useState(90);
+
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [sessionRpe, setSessionRpe] = useState(7);
+  const [sessionNotes, setSessionNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<WorkoutLog | null>(null);
+  const [historyExpanded, setHistoryExpanded] = useState<string | null>(null);
+
+  const [showPicker, setShowPicker] = useState(false);
+  const [exerciseSearch, setExerciseSearch] = useState('');
+  const [activeMuscleTab, setActiveMuscleTab] = useState('All');
+  const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
+
+  const [result, setResult] = useState<WorkoutResult | null>(null);
+  const [notice, setNotice] = useState('');
+  const startedFromRoute = useRef(false);
+
+  useEffect(() => {
+    if (!finishOpen && !cancelOpen && !deleteTarget && !result) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (finishOpen) setFinishOpen(false);
+      if (cancelOpen) setCancelOpen(false);
+      if (deleteTarget) setDeleteTarget(null);
+      if (result) setResult(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [finishOpen, cancelOpen, deleteTarget, result]);
+
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || !user) return;
+    writeActiveWorkout(user.id, active);
+  }, [active, user]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => setNotice(''), 2600);
+    return () => window.clearTimeout(id);
+  }, [notice]);
+
+  useEffect(() => {
+    if (startedFromRoute.current || active || !user) return;
+    const planId = (location.state as { planId?: string } | null)?.planId;
+    if (!planId || !PLAN_TEMPLATES[planId]) return;
+    startedFromRoute.current = true;
+    startFromPlan(planId);
+    navigate('/workout', { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, active, user]);
+
+  const elapsed = active ? Math.max(0, Math.floor((now - new Date(active.startedAt).getTime()) / 1000)) : 0;
+  const restLeft = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
+
+  useEffect(() => {
+    if (restEndsAt && restLeft <= 0) setRestEndsAt(null);
+  }, [restEndsAt, restLeft]);
+
+  const stats = useMemo(() => (
+    active ? computeSessionStats(active.exercises, history) : null
+  ), [active, history]);
+
+  const buildExercise = (name: string, muscle: string, targetReps: number, setCount: number): WorkoutExerciseLog => {
+    const last = getLastExerciseRecord(history, name);
+    const suggestion = getProgressionSuggestion(last, muscle, targetReps);
+    const weight = suggestion.reason === 'weight' || suggestion.reason === 'repeat' ? suggestion.weight : 0;
+    const reps = suggestion.reason === 'reps' ? suggestion.reps : targetReps;
+    return {
+      id: uid('exercise'),
+      name,
+      muscle,
+      targetReps,
+      sets: Array.from({ length: setCount }, () => ({
+        id: uid('set'),
+        weight,
+        reps,
+        completed: false,
+      })),
+    };
   };
 
-  const handleAddExerciseDirect = (name: string, muscle: string) => {
-    setExercises([...exercises, { name, muscle, sets: [{ reps: 10, weight: 0 }] }]);
-  };
-
-  const handleRemoveExercise = (index: number) => {
-    const newEx = [...exercises];
-    newEx.splice(index, 1);
-    setExercises(newEx);
-  };
-
-  const handleAddSet = (exerciseIndex: number) => {
-    const newEx = [...exercises];
-    const prevSet = newEx[exerciseIndex].sets[newEx[exerciseIndex].sets.length - 1];
-    newEx[exerciseIndex].sets.push({ 
-      reps: prevSet ? prevSet.reps : 10, 
-      weight: prevSet ? prevSet.weight : 0 
-    });
-    setExercises(newEx);
-  };
-
-  const handleRemoveSet = (exerciseIndex: number, setIndex: number) => {
-    const newEx = [...exercises];
-    newEx[exerciseIndex].sets.splice(setIndex, 1);
-    setExercises(newEx);
-  };
-
-  const updateSet = (exerciseIndex: number, setIndex: number, field: 'reps'|'weight', value: number) => {
-    const newEx = [...exercises];
-    newEx[exerciseIndex].sets[setIndex][field] = value;
-    setExercises(newEx);
-  };
-
-  const handleFinishWorkout = () => {
-    if (exercises.length === 0) return;
-    
-    const user = useAuthStore.getState().user;
+  const startFromPlan = (planId: string) => {
     if (!user) return;
-    
-    const awardAchievement = useAuthStore.getState().awardAchievement;
-    const lootItem = useAuthStore.getState().lootItem;
-    const musclesWorked = Array.from(new Set(exercises.map(e => e.muscle)));
-    
-    let totalExpGained = 0;
-    let totalVolume = 0;
+    const template = PLAN_TEMPLATES[planId] || [];
+    const next: ActiveWorkout = {
+      id: crypto.randomUUID(),
+      name: t(`workout.plans.${planId}.name`, planId),
+      planId,
+      startedAt: new Date().toISOString(),
+      exercises: template.map(exercise => buildExercise(exercise.name, exercise.muscle, exercise.reps, exercise.sets)),
+      notes: '',
+    };
+    setActive(next);
+    setNow(Date.now());
+    setRestEndsAt(null);
+    setShowPicker(false);
+    writeActiveWorkout(user.id, next);
+  };
 
-    exercises.forEach(ex => {
-      totalExpGained += 20; // 20 XP per completed exercise
-      totalExpGained += ex.sets.length * 10; // 10 XP per set
-      ex.sets.forEach(set => {
-        totalVolume += set.weight * set.reps;
-      });
-    });
+  const startEmpty = () => {
+    if (!user) return;
+    const next: ActiveWorkout = {
+      id: crypto.randomUUID(),
+      name: t('workout.customWorkout'),
+      startedAt: new Date().toISOString(),
+      exercises: [],
+      notes: '',
+    };
+    setActive(next);
+    setNow(Date.now());
+    setRestEndsAt(null);
+    setShowPicker(true);
+    writeActiveWorkout(user.id, next);
+  };
 
-    // Check Achievements!
-    const userAchievements = user.achievements || [];
-    if (user.totalExp === 0 && !userAchievements.includes("First Steps")) {
-      awardAchievement("First Steps");
+  const updateExercise = (exerciseId: string, updater: (exercise: WorkoutExerciseLog) => WorkoutExerciseLog) => {
+    setActive(prev => prev ? {
+      ...prev,
+      exercises: prev.exercises.map(exercise => exercise.id === exerciseId ? updater(exercise) : exercise),
+    } : prev);
+  };
+
+  const updateSet = (exerciseId: string, setId: string, patch: Partial<WorkoutSetLog>) => {
+    updateExercise(exerciseId, exercise => ({
+      ...exercise,
+      sets: exercise.sets.map(set => set.id === setId ? { ...set, ...patch } : set),
+    }));
+  };
+
+  const toggleSet = (exerciseId: string, setId: string) => {
+    const exercise = active?.exercises.find(item => item.id === exerciseId);
+    const target = exercise?.sets.find(set => set.id === setId);
+    if (!target) return;
+    const willComplete = !target.completed;
+
+    updateExercise(exerciseId, current => ({
+      ...current,
+      sets: current.sets.map(set => set.id === setId ? { ...set, completed: !set.completed } : set),
+    }));
+
+    if (willComplete) {
+      setNow(Date.now());
+      setRestEndsAt(Date.now() + restLength * 1000);
     }
-    if (totalVolume > 1000 && !userAchievements.includes("Heavy Lifter")) {
-      awardAchievement("Heavy Lifter");
-    }
+  };
 
-    gainExp(musclesWorked, totalExpGained);
-
-    // Roll for Loot (30% chance)
-    let droppedItem = null;
-    if (Math.random() < 0.3) {
-       droppedItem = generateRandomItem();
-       lootItem(droppedItem);
-    }
-
-    const totalSets = exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
-
-    // Show professional result modal instead of alert
-    setWorkoutResult({
-      exp: totalExpGained,
-      muscles: musclesWorked,
-      volume: Math.round(totalVolume),
-      sets: totalSets,
-      loot: droppedItem ? {
-        name: droppedItem.name,
-        stat: droppedItem.statBoost.stat,
-        value: droppedItem.statBoost.value,
-        rarity: droppedItem.rarity
-      } : null
+  const addSet = (exerciseId: string) => {
+    updateExercise(exerciseId, exercise => {
+      const last = exercise.sets[exercise.sets.length - 1];
+      return {
+        ...exercise,
+        sets: [
+          ...exercise.sets,
+          {
+            id: uid('set'),
+            weight: last?.weight || 0,
+            reps: last?.reps || exercise.targetReps,
+            completed: false,
+          },
+        ],
+      };
     });
   };
 
-  const filteredExercises = EXERCISE_DB.filter(ex => {
-    const matchesTab = activeMuscleTab === 'All' || ex.muscle === activeMuscleTab;
-    const matchesSearch = ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()) || 
-                          (ex.desc && ex.desc.toLowerCase().includes(exerciseSearch.toLowerCase()));
+  const removeSet = (exerciseId: string, setId: string) => {
+    updateExercise(exerciseId, exercise => ({
+      ...exercise,
+      sets: exercise.sets.filter(set => set.id !== setId),
+    }));
+  };
+
+  const removeExercise = (exerciseId: string) => {
+    setActive(prev => prev ? {
+      ...prev,
+      exercises: prev.exercises.filter(exercise => exercise.id !== exerciseId),
+    } : prev);
+  };
+
+  const addExercise = (name: string, muscle: string) => {
+    const targetReps = muscle === 'Core' ? 20 : 10;
+    setActive(prev => prev ? {
+      ...prev,
+      exercises: [...prev.exercises, buildExercise(name, muscle, targetReps, 3)],
+    } : prev);
+  };
+
+  const resetSession = () => {
+    if (!user) return;
+    clearActiveWorkout(user.id);
+    setActive(null);
+    setRestEndsAt(null);
+    setShowPicker(false);
+  };
+
+  const openFinish = () => {
+    if (!active || !stats) return;
+    if (stats.totalSets === 0) {
+      setNotice(t('workout.finishEmpty'));
+      return;
+    }
+    setSessionNotes(active.notes || '');
+    setFinishOpen(true);
+  };
+
+  const finishWorkout = async () => {
+    if (!active || !stats || !user || saving) return;
+    setSaving(true);
+    const completedAt = new Date().toISOString();
+    const workout: WorkoutLog = {
+      id: active.id,
+      name: active.name,
+      planId: active.planId,
+      startedAt: active.startedAt,
+      completedAt,
+      durationSec: Math.max(0, Math.round((new Date(completedAt).getTime() - new Date(active.startedAt).getTime()) / 1000)),
+      exercises: active.exercises,
+      muscles: stats.muscles,
+      notes: sessionNotes.trim(),
+      rpe: sessionRpe,
+      totalVolume: stats.totalVolume,
+      totalSets: stats.totalSets,
+      expGained: stats.expGained,
+      prs: stats.prs,
+    };
+
+    let saved: WorkoutLog;
+    try {
+      saved = await saveWorkoutAction(workout);
+    } catch {
+      setSaving(false);
+      setNotice(t('workout.saveError'));
+      return;
+    }
+
+    if (saved.pendingSync) {
+      setNotice(t('workout.savedOffline'));
+    }
+
+    let loot: WorkoutResult['loot'] = null;
+    if (Math.random() < 0.3) {
+      const item = generateRandomItem();
+      await lootItem(item);
+      loot = {
+        name: item.name,
+        stat: item.statBoost.stat,
+        value: item.statBoost.value,
+        rarity: item.rarity,
+      };
+    }
+
+    setSaving(false);
+    setFinishOpen(false);
+    setRestEndsAt(null);
+    clearActiveWorkout(user.id);
+    setActive(null);
+    setResult({
+      exp: saved.expGained,
+      muscles: saved.muscles,
+      volume: saved.totalVolume,
+      sets: saved.totalSets,
+      duration: saved.durationSec,
+      prs: saved.prs,
+      loot,
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteWorkoutAction(deleteTarget.id);
+    setDeleteTarget(null);
+    setNotice(t('workout.deleted'));
+  };
+
+  const filteredExercises = EXERCISE_DB.filter(exercise => {
+    const translatedName = translateExerciseName(exercise.name, lang);
+    const translatedDesc = translateExerciseDesc(exercise.desc, lang);
+    const matchesTab = activeMuscleTab === 'All' || exercise.muscle === activeMuscleTab;
+    const matchesSearch = translatedName.toLowerCase().includes(exerciseSearch.toLowerCase())
+      || translatedDesc.toLowerCase().includes(exerciseSearch.toLowerCase());
     return matchesTab && matchesSearch;
   });
 
+  const getMuscleTranslation = (muscle: string) => {
+    if (muscle === 'All') return t('workout.allExercises');
+    return t(`dashboard.${muscle.toLowerCase()}`, muscle);
+  };
+
+  const getLevelLabel = (level: string) => {
+    if (level === 'Początkujący') return t('workout.levelBeginner');
+    if (level === 'Średni') return t('workout.levelIntermediate');
+    if (level === 'Zaawansowany') return t('workout.levelAdvanced');
+    return level;
+  };
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
-      case 'Legendary': return '#eab308';
-      case 'Epic': return '#a855f7';
-      case 'Rare': return '#3b82f6';
-      default: return '#9ca3af';
+      case 'Legendary': return '#f97316';
+      case 'Epic': return '#eceef1';
+      case 'Rare': return '#a3a8b0';
+      default: return '#71767f';
     }
   };
 
-  const getRarityLabel = (rarity: string) => {
-    switch (rarity) {
-      case 'Legendary': return 'Legendarny';
-      case 'Epic': return 'Epicki';
-      case 'Rare': return 'Rzadki';
-      default: return 'Zwykły';
-    }
+  const dateLabel = (iso: string) => {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '—';
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) return t('workout.today');
+    return date.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
   };
+
+  const orderedPlans = [...WORKOUT_PLANS].sort((a, b) => {
+    if (onboarding?.planId === a.id) return -1;
+    if (onboarding?.planId === b.id) return 1;
+    return 0;
+  });
+
+  const activeExerciseNames = new Set(active?.exercises.map(exercise => exercise.name) || []);
+
+  const renderPicker = () => (
+    <section className="card animate-fade-in" style={{ padding: 18, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 15, margin: 0 }}>{t('workout.addExerciseToSession')}</h3>
+        <button type="button" className="icon-btn" onClick={() => setShowPicker(false)} aria-label={t('common.cancel')}>
+          <X size={16} />
+        </button>
+      </div>
+
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+        <input
+          type="text"
+          className="input-field"
+          placeholder={t('workout.searchPlaceholder')}
+          value={exerciseSearch}
+          onChange={event => setExerciseSearch(event.target.value)}
+          style={{ paddingLeft: 38 }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 4, scrollbarWidth: 'none' }}>
+        {MUSCLE_TABS.map(key => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveMuscleTab(key)}
+            style={{
+              whiteSpace: 'nowrap',
+              padding: '6px 12px',
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 600,
+              border: activeMuscleTab === key ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+              background: activeMuscleTab === key ? 'var(--accent-soft)' : 'transparent',
+              color: activeMuscleTab === key ? 'var(--accent)' : 'var(--text-2)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {getMuscleTranslation(key)}
+          </button>
+        ))}
+      </div>
+
+      <div className="picker-list">
+        {filteredExercises.length === 0 && (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>{t('workout.noExercisesMatch')}</p>
+        )}
+        {filteredExercises.map(exercise => {
+          const added = activeExerciseNames.has(exercise.name);
+          return (
+            <button
+              key={exercise.name}
+              type="button"
+              className="picker-item"
+              onClick={() => { if (!added) addExercise(exercise.name, exercise.muscle); }}
+              style={{ opacity: added ? 0.55 : 1, cursor: added ? 'default' : 'pointer' }}
+            >
+              <span>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{translateExerciseName(exercise.name, lang)}</span>
+                <span className="picker-item-meta">{translateExerciseDesc(exercise.desc, lang)}</span>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <span className="picker-item-meta">{getMuscleTranslation(exercise.muscle)}</span>
+                {added ? <Check size={16} color="var(--accent)" /> : <Plus size={16} color="var(--accent)" />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const renderHistory = () => (
+    <section className="card" style={{ padding: 18, marginTop: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
+        <h3 style={{ fontSize: 16, margin: 0 }}>{t('workout.historyTitle')}</h3>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{history.length} {workoutNoun(history.length)}</span>
+      </div>
+
+      {historyLoading && history.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 0' }}>{t('common.loading')}</p>
+      )}
+      {!historyLoading && history.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 0' }}>{t('workout.historyEmpty')}</p>
+      )}
+
+      {history.slice(0, 12).map(workout => {
+        const isExpanded = historyExpanded === workout.id;
+        return (
+          <div key={workout.id}>
+            <div className="session-history-row">
+              <div
+                className="session-history-main"
+                onClick={() => setHistoryExpanded(isExpanded ? null : workout.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="session-history-title">{workout.name}</div>
+                <div className="session-history-meta">
+                  {dateLabel(workout.completedAt)} · {formatDurationLabel(workout.durationSec)} · {workout.totalSets} {setNoun(workout.totalSets)}
+                </div>
+              </div>
+              <div className="session-history-stats">
+                <span>{Math.round(workout.totalVolume).toLocaleString(locale)} kg</span>
+                {workout.prs?.length > 0 && (
+                  <span style={{ color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    <Trophy size={12} /> {workout.prs.length}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setHistoryExpanded(isExpanded ? null : workout.id)}
+                aria-label={isExpanded ? t('workout.hideDetails') : t('workout.showDetails')}
+              >
+                <ChevronDown size={15} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.16s ease' }} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setDeleteTarget(workout)}
+                aria-label={t('workout.delete')}
+                style={{ color: 'var(--danger)' }}
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+            {isExpanded && (
+              <div className="session-history-detail">
+                {workout.exercises.length === 0 && <span>{t('workout.historyEmpty')}</span>}
+                {workout.exercises.map(exercise => {
+                  const best = getBestSet(exercise);
+                  return (
+                    <div key={exercise.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '3px 0' }}>
+                      <span>{translateExerciseName(exercise.name, lang)}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {exercise.sets.filter(set => set.completed).length} ×
+                        {best ? ` ${best.weight > 0 ? `${best.weight} kg` : ''} ${best.reps}` : ' —'}
+                      </span>
+                    </div>
+                  );
+                })}
+                {workout.notes && <p style={{ marginTop: 6 }}>{workout.notes}</p>}
+                {workout.rpe && <p style={{ marginTop: 4 }}>RPE {workout.rpe}/10</p>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
 
   return (
     <>
+      <Navigation />
 
-    {/* ===== WORKOUT RESULT MODAL ===== */}
-    {workoutResult && (
-      <div style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.85)',
-        zIndex: 200,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '24px'
-      }}>
-        <div className="glass-panel animate-fade-in" style={{
-          width: '100%', maxWidth: '400px',
-          padding: '32px 24px',
-          border: '2px solid var(--accent-base)',
-          boxShadow: '0 0 60px rgba(249,115,22,0.25)',
-          textAlign: 'center',
-          position: 'relative'
-        }}>
-
-          {/* Trophy icon with glow */}
-          <div style={{
-            width: '72px', height: '72px', borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)',
-            boxShadow: '0 0 30px rgba(249,115,22,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-            animation: 'pulse 1.5s infinite'
-          }}>
-            <Trophy size={36} color="white" />
-          </div>
-
-          <h2 style={{ fontSize: '26px', fontWeight: 800, marginBottom: '4px' }}>Trening Ukończony!</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '24px' }}>
-            Twój postęp został zapisany. Niesamowita robota! 💪
+      <div className="container app-page page-workout page-transition">
+        <header style={{ marginBottom: 22 }}>
+          <h1 className="text-gradient" style={{ fontSize: 28, marginBottom: 6 }}>{t('workout.title')}</h1>
+          <p style={{ color: 'var(--text-2)', fontSize: 14 }}>
+            {active ? t('workout.sessionTitle') : t('workout.selectPlanDesc')}
           </p>
+        </header>
 
-          {/* EXP big badge */}
-          <div style={{
-            background: 'rgba(249,115,22,0.1)',
-            border: '1px solid rgba(249,115,22,0.3)',
-            borderRadius: '12px', padding: '14px',
-            marginBottom: '16px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
-          }}>
-            <Zap size={28} color="var(--accent-base)" fill="var(--accent-base)" />
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--accent-base)', lineHeight: 1 }}>+{workoutResult.exp} EXP</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Punkty Doświadczenia</div>
-            </div>
-          </div>
-
-          {/* Stats grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px 6px', border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{workoutResult.sets}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Serie</div>
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px 6px', border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{workoutResult.volume}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>kg objętości</div>
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px 6px', border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{workoutResult.muscles.length}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Partie mięśni</div>
-            </div>
-          </div>
-
-          {/* Muscles worked */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '16px' }}>
-            {workoutResult.muscles.map(m => (
-              <span key={m} style={{
-                fontSize: '11px', padding: '4px 10px', borderRadius: '20px',
-                background: 'rgba(249,115,22,0.1)',
-                border: '1px solid rgba(249,115,22,0.3)',
-                color: 'var(--accent-base)', fontWeight: 600
-              }}>
-                {MUSCLE_TRANSLATIONS[m] || m}
-              </span>
-            ))}
-          </div>
-
-          {/* Loot drop section */}
-          {workoutResult.loot && (
-            <div style={{
-              background: `${getRarityColor(workoutResult.loot.rarity)}11`,
-              border: `1px solid ${getRarityColor(workoutResult.loot.rarity)}44`,
-              borderRadius: '12px', padding: '14px',
-              marginBottom: '16px',
-              display: 'flex', alignItems: 'center', gap: '12px',
-              textAlign: 'left'
-            }}>
-              <div style={{
-                width: '44px', height: '44px', borderRadius: '10px', flexShrink: 0,
-                background: `${getRarityColor(workoutResult.loot.rarity)}22`,
-                border: `2px solid ${getRarityColor(workoutResult.loot.rarity)}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: `0 0 14px ${getRarityColor(workoutResult.loot.rarity)}44`
-              }}>
-                <Package size={22} color={getRarityColor(workoutResult.loot.rarity)} />
-              </div>
-              <div>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: getRarityColor(workoutResult.loot.rarity), textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
-                  🎁 Łup Wojenny — {getRarityLabel(workoutResult.loot.rarity)}
-                </div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{workoutResult.loot.name}</div>
-                <div style={{ fontSize: '12px', color: getRarityColor(workoutResult.loot.rarity), fontWeight: 600 }}>+{workoutResult.loot.value} {workoutResult.loot.stat}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Stars decoration */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: '20px' }}>
-            {[...Array(5)].map((_, i) => (
-              <Star
-                key={i}
-                size={18}
-                color="#fbbf24"
-                fill={i < Math.min(5, Math.ceil(workoutResult.exp / 50)) ? '#fbbf24' : 'transparent'}
-              />
-            ))}
-          </div>
-
-          <button
-            className="btn btn-primary"
-            onClick={() => { setWorkoutResult(null); navigate('/'); }}
-            style={{ width: '100%', padding: '16px', fontSize: '16px', fontWeight: 800, boxShadow: 'var(--shadow-glow)' }}
-          >
-            🏠 Wróć do Bazy
-          </button>
-        </div>
-      </div>
-    )}
-
-    <div className="animate-fade-in container" style={{ paddingTop: '24px', paddingBottom: '120px', minHeight: '100vh' }}>
-      <header style={{ marginBottom: '24px' }}>
-        <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '8px' }}>Dziennik Treningowy</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>Zapisuj serie i rozwijaj postać gladiatora</p>
-      </header>
-
-      {/* Popular Plans List / Plan preview modal */}
-      {exercises.length === 0 && !selectedPlanPreview && (
-        <section style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '12px' }}>Wybierz Gotowy Plan Treningowy</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {WORKOUT_PLANS.map((plan) => (
-              <button 
-                key={plan.id} 
-                className="glass-panel" 
-                onClick={() => setSelectedPlanPreview(plan)}
-                style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', border: '1px solid transparent', transition: '0.2s', cursor: 'pointer', background: 'var(--surface-color)', width: '100%' }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-base)'}
-                onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <BookOpen size={16} color="var(--accent-base)" />
-                  <h3 style={{ fontSize: '17px', margin: 0, color: 'var(--text-primary)', fontWeight: 600 }}>{plan.name}</h3>
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'left', lineHeight: '1.4' }}>{plan.desc}</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '12px', background: 'rgba(249,115,22,0.1)', color: 'var(--accent-base)', fontWeight: 500 }}>{plan.level}</span>
-                  <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>{plan.days} dni w tygodniu</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Plan Preview Container */}
-      {selectedPlanPreview && (
-        <section className="glass-panel animate-fade-in" style={{ padding: '24px', marginBottom: '24px', position: 'relative', border: '1px solid var(--accent-base)' }}>
-          <button 
-            onClick={() => setSelectedPlanPreview(null)}
-            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-          >
-            <X size={20} />
-          </button>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <BookOpen size={20} color="var(--accent-base)" />
-            <h3 style={{ fontSize: '19px', margin: 0, color: 'var(--text-primary)' }}>{selectedPlanPreview.name}</h3>
-          </div>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>{selectedPlanPreview.desc}</p>
-          
-          <h4 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ćwiczenia w planie:</h4>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-            {PLAN_TEMPLATES[selectedPlanPreview.id].map((tmplEx, idx) => {
-              const exInfo = EXERCISE_DB.find(e => e.name === tmplEx.name);
-              return (
-                <div key={idx} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: '8px', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{tmplEx.name}</strong>
-                    <span style={{ fontSize: '11px', color: 'var(--accent-base)', fontWeight: 500 }}>{MUSCLE_TRANSLATIONS[tmplEx.muscle] || tmplEx.muscle}</span>
+        {!active && (
+          <>
+            {onboarding && (
+              <section className="card" style={{ padding: 16, marginBottom: 18, border: '1px solid var(--accent-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Dumbbell size={18} color="var(--accent)" />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{t('workout.planGenerated')}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {t(`workout.plans.${onboarding.planId}.name`, onboarding.planId)} · {onboarding.daysPerWeek} {t('onboarding.daysUnit')}
+                      </div>
+                    </div>
                   </div>
-                  {exInfo && <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>{exInfo.desc}</p>}
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => startFromPlan(onboarding.planId)}
+                    style={{ padding: '9px 16px' }}
+                  >
+                    <Play size={15} /> {t('workout.startSession')}
+                  </button>
                 </div>
+              </section>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, marginBottom: 20 }}>
+              <button type="button" className="plan-option" onClick={startEmpty} style={{ borderStyle: 'dashed' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={17} color="var(--accent)" />
+                  <span className="plan-option-title">{t('workout.quickStart')}</span>
+                </span>
+                <span className="plan-option-meta">{t('workout.quickStartDesc')}</span>
+              </button>
+              {history[0] && (
+                <button
+                  type="button"
+                  className="plan-option"
+                  onClick={() => { setHistoryExpanded(history[0].id); }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Clock size={17} color="var(--text-2)" />
+                    <span className="plan-option-title">{t('workout.lastWorkout')}</span>
+                  </span>
+                  <span className="plan-option-meta">
+                    {dateLabel(history[0].completedAt)} · {history[0].totalSets} {setNoun(history[0].totalSets)} · {Math.round(history[0].totalVolume).toLocaleString(locale)} kg
+                  </span>
+                </button>
+              )}
+            </div>
+
+            <section style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 17, marginBottom: 12 }}>{t('workout.selectPlan')}</h2>
+              <div className="session-plan-grid">
+                {orderedPlans.map(plan => {
+                  const planName = t(`workout.plans.${plan.id}.name`, plan.id);
+                  return (
+                    <button key={plan.id} type="button" className="plan-option" onClick={() => startFromPlan(plan.id)}>
+                      <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <span className="plan-option-title">{planName}</span>
+                        {onboarding?.planId === plan.id && (
+                          <span style={{ fontSize: 9, color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
+                            {lang === 'pl' ? 'DLA CIEBIE' : 'FOR YOU'}
+                          </span>
+                        )}
+                      </span>
+                      <span className="plan-option-meta" style={{ lineHeight: 1.45 }}>
+                        {t(`workout.plans.${plan.id}.desc`, '')}
+                      </span>
+                      <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                        <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+                          {getLevelLabel(plan.level)}
+                        </span>
+                        <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+                          {plan.days} {t('onboarding.daysUnit')}
+                        </span>
+                        <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+                          {PLAN_TEMPLATES[plan.id]?.length || 0} {exerciseNoun(PLAN_TEMPLATES[plan.id]?.length || 0)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </>
+        )}
+
+        {active && (
+          <>
+            <div className="session-header">
+              <div>
+                <div className="session-timer-label">{t('workout.sessionTitle')} · {active.name}</div>
+                <div className="session-timer">{formatClock(elapsed)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {active.exercises.length} {exerciseNoun(active.exercises.length)} · {stats?.totalSets || 0} {setNoun(stats?.totalSets || 0)} · {Math.round(stats?.totalVolume || 0).toLocaleString(locale)} kg
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('workout.restLength')}</span>
+                  <select
+                    value={restLength}
+                    onChange={event => setRestLength(Number(event.target.value))}
+                    aria-label={t('workout.restLength')}
+                    style={{
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 7,
+                      color: 'var(--text-2)',
+                      padding: '3px 6px',
+                      fontSize: 11,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {[60, 90, 120, 180].map(value => (
+                      <option key={value} value={value}>{value} s</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setCancelOpen(true)} style={{ padding: '9px 12px' }}>
+                  <X size={15} /> {t('workout.cancelWorkout')}
+                </button>
+                <button type="button" className="btn btn-primary" onClick={openFinish} style={{ padding: '9px 14px' }}>
+                  <Check size={15} /> {t('workout.finish')}
+                </button>
+              </div>
+            </div>
+
+            {active.exercises.length === 0 && (
+              <section className="card" style={{ padding: 24, textAlign: 'center', marginBottom: 14 }}>
+                <Dumbbell size={26} color="var(--text-muted)" style={{ marginBottom: 8 }} />
+                <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14 }}>{t('workout.sessionEmpty')}</p>
+                <button type="button" className="btn btn-primary" onClick={() => setShowPicker(true)}>
+                  <Plus size={16} /> {t('workout.addExercise')}
+                </button>
+              </section>
+            )}
+
+            {active.exercises.map(exercise => {
+              const last = getLastExerciseRecord(history, exercise.name);
+              const lastBest = last ? getBestSet(last.exercise) : null;
+              const suggestion = getProgressionSuggestion(last, exercise.muscle, exercise.targetReps);
+              const suggestionText = suggestion.reason === 'weight'
+                ? t('workout.suggestionWeight').replace('{weight}', String(suggestion.weight))
+                : suggestion.reason === 'reps'
+                  ? t('workout.suggestionReps').replace('{reps}', String(suggestion.reps))
+                  : suggestion.reason === 'repeat'
+                    ? t('workout.suggestionRepeat')
+                    : t('workout.suggestionFirst');
+
+              return (
+                <article key={exercise.id} className="session-exercise">
+                  <div className="session-exercise-head">
+                    <div>
+                      <div className="session-exercise-title">{translateExerciseName(exercise.name, lang)}</div>
+                      <div className="session-exercise-meta">
+                        {getMuscleTranslation(exercise.muscle)} · {exercise.sets.length} {setNoun(exercise.sets.length)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="session-prev">
+                        {t('workout.previous')}: {lastBest ? `${lastBest.weight > 0 ? `${lastBest.weight} kg × ` : ''}${lastBest.reps}` : '—'}
+                      </span>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => removeExercise(exercise.id)}
+                        aria-label={t('workout.removeExercise')}
+                        style={{ color: 'var(--danger)' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="session-suggestion">
+                    <Zap size={13} />
+                    <span>{t('workout.suggested')}: {suggestionText}</span>
+                  </div>
+
+                  <div className="session-table">
+                    {exercise.sets.map((set, index) => (
+                      <div key={set.id} className={`session-set${set.completed ? ' is-completed' : ''}`}>
+                        <span className="session-set-num">{index + 1}</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step={0.5}
+                          placeholder={t('workout.weightPlaceholder')}
+                          value={set.weight === 0 ? '' : set.weight}
+                          onChange={event => updateSet(exercise.id, set.id, { weight: Number(event.target.value) || 0 })}
+                          aria-label={`${t('workout.weight')} ${index + 1}`}
+                        />
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          placeholder={t('workout.repsPlaceholder')}
+                          value={set.reps === 0 ? '' : set.reps}
+                          onChange={event => updateSet(exercise.id, set.id, { reps: Number(event.target.value) || 0 })}
+                          aria-label={`${t('workout.reps')} ${index + 1}`}
+                        />
+                        <select
+                          value={set.rpe ?? ''}
+                          onChange={event => updateSet(exercise.id, set.id, { rpe: event.target.value ? Number(event.target.value) : undefined })}
+                          aria-label={`${t('workout.setRpe')} ${index + 1}`}
+                          style={{
+                            background: 'var(--surface-2)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 8,
+                            color: set.rpe ? 'var(--accent)' : 'var(--text-muted)',
+                            padding: '7px 2px',
+                            fontSize: 11,
+                            fontFamily: 'inherit',
+                            minWidth: 0,
+                          }}
+                        >
+                          <option value="">RPE</option>
+                          {[6, 7, 8, 9, 10].map(value => <option key={value} value={value}>{value}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          className={`session-set-done${set.completed ? ' is-done' : ''}`}
+                          onClick={() => toggleSet(exercise.id, set.id)}
+                          aria-label={t('workout.markSet')}
+                        >
+                          <Check size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="session-actions">
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" className="btn btn-ghost" onClick={() => addSet(exercise.id)} style={{ padding: '7px 10px', fontSize: 12 }}>
+                        <Plus size={14} /> {t('workout.addSet')}
+                      </button>
+                      {exercise.sets.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            const lastSet = exercise.sets[exercise.sets.length - 1];
+                            if (lastSet) removeSet(exercise.id, lastSet.id);
+                          }}
+                          style={{ padding: '7px 10px', fontSize: 12, color: 'var(--text-muted)' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setNoteOpenId(noteOpenId === exercise.id ? null : exercise.id)}
+                      style={{ padding: '7px 10px', fontSize: 12 }}
+                    >
+                      {t('workout.exerciseNotes')}
+                    </button>
+                  </div>
+
+                  {noteOpenId === exercise.id && (
+                    <div className="session-notes">
+                      <textarea
+                        value={exercise.notes || ''}
+                        onChange={event => updateExercise(exercise.id, current => ({ ...current, notes: event.target.value }))}
+                        placeholder={t('workout.exerciseNotesPlaceholder')}
+                      />
+                    </div>
+                  )}
+
+                  {exercise.notes && noteOpenId !== exercise.id && (
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{exercise.notes}</p>
+                  )}
+                </article>
               );
             })}
-          </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="btn btn-secondary" onClick={() => setSelectedPlanPreview(null)} style={{ flex: 1, padding: '10px' }}>
-              Wróć
+            {showPicker ? renderPicker() : (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowPicker(true)}
+                style={{ width: '100%', borderStyle: 'dashed', marginBottom: 4 }}
+              >
+                <Plus size={16} /> {t('workout.addExercise')}
+              </button>
+            )}
+          </>
+        )}
+
+        {!active && renderHistory()}
+      </div>
+
+      {restEndsAt && (
+        <div className="rest-bar" role="status" aria-live="polite">
+          <div>
+            <div className="rest-bar-label">{t('workout.restTimer')}</div>
+            <div className="rest-bar-time">{formatClock(restLeft)}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setRestEndsAt(Date.now() + restLength * 1000)} style={{ padding: '6px 9px', fontSize: 11 }}>
+              <RotateCcw size={13} />
             </button>
-            <button className="btn btn-primary" onClick={() => handleLoadPlan(selectedPlanPreview.id)} style={{ flex: 2, padding: '10px' }}>
-              Wybierz ten plan
+            <button type="button" className="btn btn-ghost" onClick={() => setRestEndsAt(value => (value || Date.now()) + 30000)} style={{ padding: '6px 9px', fontSize: 11 }}>
+              {t('workout.add30')}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setRestEndsAt(null)} style={{ padding: '6px 10px', fontSize: 11 }}>
+              {t('workout.skipRest')}
             </button>
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Advanced Exercise Selection & Directory */}
-      <section className="glass-panel" style={{ padding: '20px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '17px', marginBottom: '12px', color: 'var(--text-primary)' }}>Dodaj Nowe Ćwiczenia</h3>
-        
-        {/* Search */}
-        <div style={{ position: 'relative', marginBottom: '14px' }}>
-          <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="Szukaj ćwiczenia... (np. Przysiad)"
-            value={exerciseSearch}
-            onChange={(e) => setExerciseSearch(e.target.value)}
-            style={{ paddingLeft: '38px', paddingRight: '12px', fontSize: '14px', padding: '10px 38px' }}
-          />
+      {notice && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 96,
+          transform: 'translateX(-50%)',
+          zIndex: 400,
+          background: 'var(--surface-3)',
+          border: '1px solid var(--border-strong)',
+          color: 'var(--text)',
+          borderRadius: 10,
+          padding: '10px 16px',
+          fontSize: 12,
+          boxShadow: 'var(--shadow-md)',
+        }}>
+          {notice}
         </div>
+      )}
 
-        {/* Muscle group tabs */}
-        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '14px', scrollbarWidth: 'none' }}>
-          {Object.entries(MUSCLE_TRANSLATIONS).map(([key, name]) => (
-            <button
-              key={key}
-              onClick={() => setActiveMuscleTab(key)}
-              style={{
-                whiteSpace: 'nowrap',
-                padding: '6px 12px',
-                borderRadius: '20px',
-                fontSize: '12px',
-                fontWeight: 600,
-                border: activeMuscleTab === key ? '1px solid var(--accent-base)' : '1px solid var(--border-color)',
-                background: activeMuscleTab === key ? 'rgba(249,115,22,0.1)' : 'transparent',
-                color: activeMuscleTab === key ? 'var(--accent-base)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                transition: '0.2s'
-              }}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
+      {finishOpen && active && stats && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label={t('workout.finishTitle')}>
+          <div className="onboarding-card" style={{ maxWidth: 480 }}>
+            <div className="onboarding-top">
+              <div>
+                <span className="onboarding-eyebrow">{t('workout.sessionTitle')}</span>
+                <h2 className="onboarding-title">{t('workout.finishTitle')}</h2>
+                <p className="onboarding-subtitle">{t('workout.finishConfirmDesc')}</p>
+              </div>
+              <button type="button" className="icon-btn" onClick={() => setFinishOpen(false)} aria-label={t('common.cancel')}>
+                <X size={18} />
+              </button>
+            </div>
 
-        {/* Exercises matching filters */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-          {filteredExercises.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '12px 0' }}>Brak ćwiczeń spełniających filtry.</p>
-          ) : (
-            filteredExercises.map(ex => (
-              <div 
-                key={ex.name} 
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'left' }}
-              >
-                <div style={{ flex: 1, paddingRight: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                    <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{ex.name}</strong>
-                    <span style={{ fontSize: '9px', background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '8px', color: 'var(--text-secondary)' }}>
-                      {MUSCLE_TRANSLATIONS[ex.muscle] || ex.muscle}
-                    </span>
+            <div className="onboarding-body" style={{ marginTop: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <div className="progress-stat"><span>{t('workout.duration')}</span><strong style={{ fontSize: 18 }}>{formatClock(elapsed)}</strong></div>
+                <div className="progress-stat"><span>{t('workout.volume')}</span><strong style={{ fontSize: 18 }}>{Math.round(stats.totalVolume).toLocaleString(locale)} kg</strong></div>
+                <div className="progress-stat"><span>{t('workout.setsCount')}</span><strong style={{ fontSize: 18 }}>{stats.totalSets}</strong></div>
+                <div className="progress-stat"><span>EXP</span><strong style={{ fontSize: 18, color: 'var(--accent)' }}>+{stats.expGained}</strong></div>
+              </div>
+
+              {stats.prs.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div className="label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <Trophy size={14} color="var(--accent)" /> {t('workout.prs')}
                   </div>
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.3' }}>{ex.desc}</p>
+                  <div className="progress-pr-list">
+                    {stats.prs.map(pr => (
+                      <div key={pr.exercise} className="progress-pr-row">
+                        <span className="progress-pr-name">{translateExerciseName(pr.exercise, lang)}</span>
+                        <span className="progress-pr-value">{pr.weight > 0 ? `${pr.weight} kg × ${pr.reps}` : `${pr.reps} ${t('workout.repsUnit')}`}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => handleAddExerciseDirect(ex.name, ex.muscle)}
-                  style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '8px', boxShadow: 'none' }}
-                >
-                  + Dodaj
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+              )}
 
-      {/* Active Workout Exercise Log */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
-        {exercises.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--border-color)', borderRadius: '16px' }}>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>Twój dziennik treningowy jest pusty.</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Wybierz gotowy plan treningowy z listy powyżej lub stwórz własny dodając ćwiczenia.</p>
-          </div>
-        ) : (
-          exercises.map((ex, exIndex) => (
-            <div key={exIndex} className="glass-panel" style={{ padding: '16px', background: 'var(--surface-color)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ textAlign: 'left' }}>
-                  <h3 style={{ fontSize: '17px', margin: 0, color: 'var(--text-primary)', fontWeight: 600 }}>{ex.name}</h3>
-                  <span style={{ fontSize: '11px', color: 'var(--accent-base)', fontWeight: 500 }}>
-                    {MUSCLE_TRANSLATIONS[ex.muscle] || ex.muscle}
-                  </span>
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span className="label">{t('workout.sessionRpe')}</span>
+                  <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>{sessionRpe}/10</span>
                 </div>
-                <button 
-                  onClick={() => handleRemoveExercise(exIndex)}
-                  style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center' }}
-                  title="Usuń ćwiczenie"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={sessionRpe}
+                  onChange={event => setSessionRpe(Number(event.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent)' }}
+                />
+                <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{t('workout.rpeHint')}</p>
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {ex.sets.map((set, setIndex) => (
-                  <div key={setIndex} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ width: '20px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500 }}>{setIndex + 1}.</span>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      style={{ padding: '8px 4px', textAlign: 'center', fontSize: '14px' }}
-                      value={set.weight || ''} 
-                      onChange={(e) => updateSet(exIndex, setIndex, 'weight', Number(e.target.value))}
-                      placeholder="Obciążenie"
-                    />
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '13px', width: '20px' }}>kg</span>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      style={{ padding: '8px 4px', textAlign: 'center', fontSize: '14px' }}
-                      value={set.reps || ''} 
-                      onChange={(e) => updateSet(exIndex, setIndex, 'reps', Number(e.target.value))}
-                      placeholder="Powt."
-                    />
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '13px', width: '30px' }}>powt.</span>
-                    <button 
-                      onClick={() => handleRemoveSet(exIndex, setIndex)}
-                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center' }}
-                      title="Usuń serię"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+
+              <div style={{ marginTop: 14 }}>
+                <span className="label">{t('workout.sessionNotes')}</span>
+                <textarea
+                  className="input-field"
+                  value={sessionNotes}
+                  onChange={event => {
+                    const value = event.target.value;
+                    setSessionNotes(value);
+                    setActive(prev => prev ? { ...prev, notes: value } : prev);
+                  }}
+                  placeholder={t('workout.sessionNotesPlaceholder')}
+                  style={{ minHeight: 70, resize: 'vertical', marginTop: 6 }}
+                />
+              </div>
+            </div>
+
+            <div className="onboarding-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setFinishOpen(false)}>
+                {t('workout.keepGoing')}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={finishWorkout} disabled={saving}>
+                <Check size={16} /> {saving ? t('common.loading') : t('workout.saveAndFinish')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelOpen && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label={t('workout.cancelConfirm')}>
+          <div className="onboarding-card" style={{ maxWidth: 400 }}>
+            <h2 className="onboarding-title">{t('workout.cancelConfirm')}</h2>
+            <p className="onboarding-hint">{t('workout.cancelConfirmDesc')}</p>
+            <div className="onboarding-actions">
+              <button type="button" className="btn btn-ghost" autoFocus onClick={() => setCancelOpen(false)}>
+                {t('workout.keepTraining')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => { setCancelOpen(false); resetSession(); }}
+              >
+                {t('workout.discard')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label={t('workout.deleteWorkoutConfirm')}>
+          <div className="onboarding-card" style={{ maxWidth: 400 }}>
+            <h2 className="onboarding-title">{t('workout.deleteWorkoutConfirm')}</h2>
+            <p className="onboarding-hint">{t('workout.deleteWorkoutDesc')}</p>
+            <div className="onboarding-actions">
+              <button type="button" className="btn btn-ghost" autoFocus onClick={() => setDeleteTarget(null)}>
+                {t('common.cancel')}
+              </button>
+              <button type="button" className="btn btn-danger" onClick={handleDelete}>
+                <Trash2 size={15} /> {t('workout.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label={t('workout.finishedTitle')}>
+          <div className="onboarding-card" style={{ maxWidth: 430, textAlign: 'center' }}>
+            <div style={{
+              width: 62,
+              height: 62,
+              borderRadius: '50%',
+              background: 'var(--accent-soft)',
+              border: '1px solid var(--accent-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 12px',
+            }}>
+              <Trophy size={28} color="var(--accent)" />
+            </div>
+
+            <h2 className="onboarding-title">{t('workout.finishedTitle')}</h2>
+            <p className="onboarding-subtitle" style={{ marginBottom: 16 }}>{t('workout.finishedDesc')}</p>
+
+            <div style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 12, padding: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <Zap size={24} color="var(--accent)" />
+              <span style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)' }}>+{result.exp} EXP</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+              <div className="progress-stat" style={{ padding: 10 }}><span>{t('workout.setsCount')}</span><strong style={{ fontSize: 18 }}>{result.sets}</strong></div>
+              <div className="progress-stat" style={{ padding: 10 }}><span>{t('workout.volume')}</span><strong style={{ fontSize: 18 }}>{result.volume.toLocaleString(locale)}</strong></div>
+              <div className="progress-stat" style={{ padding: 10 }}><span>{t('workout.duration')}</span><strong style={{ fontSize: 18 }}>{formatClock(result.duration)}</strong></div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 12 }}>
+              {result.muscles.map(muscle => (
+                <span key={muscle} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', fontWeight: 600 }}>
+                  {getMuscleTranslation(muscle)}
+                </span>
+              ))}
+            </div>
+
+            {result.prs.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="label" style={{ marginBottom: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
+                  <Trophy size={14} color="var(--accent)" /> {t('workout.prs')}
+                </div>
+                {result.prs.map(pr => (
+                  <div key={pr.exercise} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+                    <span>{translateExerciseName(pr.exercise, lang)}</span>
+                    <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{pr.weight > 0 ? `${pr.weight} kg × ${pr.reps}` : `${pr.reps} ${t('workout.repsUnit')}`}</span>
                   </div>
                 ))}
               </div>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => handleAddSet(exIndex)} 
-                style={{ width: '100%', marginTop: '12px', padding: '8px', fontSize: '13px', borderRadius: '8px' }}
-              >
-                + Dodaj Serię
-              </button>
+            )}
+
+            {result.loot && (
+              <div style={{
+                background: `${getRarityColor(result.loot.rarity)}11`,
+                border: `1px solid ${getRarityColor(result.loot.rarity)}44`,
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                textAlign: 'left',
+              }}>
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: `${getRarityColor(result.loot.rarity)}22`,
+                  border: `1px solid ${getRarityColor(result.loot.rarity)}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Package size={20} color={getRarityColor(result.loot.rarity)} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: getRarityColor(result.loot.rarity), textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {t('workout.lootReward').replace('{rarity}', t(`dashboard.rarity.${result.loot.rarity}`, result.loot.rarity))}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{translateItemName(result.loot.name, lang)}</div>
+                  <div style={{ fontSize: 11, color: getRarityColor(result.loot.rarity) }}>
+                    +{result.loot.value} {t(`dashboard.itemStats.${result.loot.stat}`, result.loot.stat)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
+              {[0, 1, 2, 3, 4].map(index => (
+                <Star
+                  key={index}
+                  size={16}
+                  color="var(--accent)"
+                  fill={index < Math.min(5, Math.ceil(result.exp / 50)) ? 'currentColor' : 'transparent'}
+                />
+              ))}
             </div>
-          ))
-        )}
-      </section>
 
-      {exercises.length > 0 && (
-        <button className="btn btn-primary" onClick={handleFinishWorkout} style={{ width: '100%', padding: '14px', fontSize: '16px', boxShadow: 'var(--shadow-glow)' }}>
-          <CheckCircle size={20} />
-          Ukończ Trening i Zbierz PD
-        </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { setResult(null); navigate('/'); }}
+              style={{ width: '100%' }}
+            >
+              {t('workout.backToBase')}
+            </button>
+          </div>
+        </div>
       )}
-
-    </div>
-    <Navigation />
     </>
   );
 };

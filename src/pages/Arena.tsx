@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { useAuthStore, getPrestigeRank } from '../store/useAuthStore';
+import { useAuthStore, getPrestigeRank, type Item, type MuscleStat } from '../store/useAuthStore';
 import { Navigation } from '../components/Navigation';
+import { useTranslation } from '../lib/translations';
 import { Swords, Heart, Search, Zap, Flame, Trophy, Cpu, Eye, Coins } from 'lucide-react';
 
 interface CombatStats {
@@ -17,7 +18,13 @@ interface CombatStats {
   difficulty?: 'weaker' | 'balanced' | 'stronger';
 }
 
-const getEquippedBoost = (equipped: any, stat: string) => {
+type EquippedItems = {
+  weapon: Item | null;
+  armor: Item | null;
+  accessory: Item | null;
+};
+
+const getEquippedBoost = (equipped: EquippedItems | null | undefined, stat: string) => {
   if (!equipped) return 0;
   let sum = 0;
   ['weapon', 'armor', 'accessory'].forEach(slot => {
@@ -47,7 +54,12 @@ const calculateStatsFromSum = (name: string, totalSum: number): CombatStats => {
    };
 };
 
-const calculateStats = (name: string, level: number, muscleStats?: any, equipped?: any): CombatStats => {
+const calculateStats = (
+  name: string,
+  level: number,
+  muscleStats?: Record<string, MuscleStat>,
+  equipped?: EquippedItems
+): CombatStats => {
   const coreLvl = muscleStats ? muscleStats['Core']?.level || 1 : level;
   const armsLvl = muscleStats ? muscleStats['Arms']?.level || 1 : level;
   const legsLvl = muscleStats ? muscleStats['Legs']?.level || 1 : level;
@@ -98,10 +110,13 @@ interface FloatingText {
   color: string;
 }
 
-const NICKNAMES = ["Cyber", "Shadow", "Wściekły", "Mroczny", "Płonący", "Tytanowy", "Bezlitosny", "Dziki", "Zardzewiały", "Neonowy"];
-const NOUNS = ["Łamacz", "Uderzacz", "Wilk", "Łowca", "Gladiator", "Grom", "Buntownik", "Drań", "Rycerz", "Żniwiarz"];
+const NICKNAMES_PL = ["Cyber", "Shadow", "Wściekły", "Mroczny", "Płonący", "Tytanowy", "Bezlitosny", "Dziki", "Zardzewiały", "Neonowy"];
+const NOUNS_PL = ["Łamacz", "Uderzacz", "Wilk", "Łowca", "Gladiator", "Grom", "Buntownik", "Drań", "Rycerz", "Żniwiarz"];
 
-const ATTACK_ACTIONS = [
+const NICKNAMES_EN = ["Cyber", "Shadow", "Furious", "Dark", "Blazing", "Titanium", "Merciless", "Wild", "Rusty", "Neon"];
+const NOUNS_EN = ["Breaker", "Striker", "Wolf", "Hunter", "Gladiator", "Thunder", "Rebel", "Rascal", "Knight", "Reaper"];
+
+const ATTACK_ACTIONS_PL = [
   "wyprowadza potężne uderzenie z góry",
   "błyskawicznie kontratakuje od dołu",
   "wykonuje szybkie pchnięcie w odsłonięty bok",
@@ -111,11 +126,22 @@ const ATTACK_ACTIONS = [
   "uderza z pełnym impetem i wściekłością"
 ];
 
+const ATTACK_ACTIONS_EN = [
+  "unleashes a powerful strike from above",
+  "instantly counterattacks from below",
+  "delivers a quick thrust into an exposed flank",
+  "tries to break the armor with a heavy slash",
+  "leaps towards the opponent with weapon raised",
+  "performs a rapid combo of strikes",
+  "strikes with full momentum and fury"
+];
+
 export const Arena = () => {
+  const { t, lang } = useTranslation();
   const user = useAuthStore(state => state.user);
   const addPrestige = useAuthStore(state => state.addPrestige);
   const addCoins = useAuthStore(state => state.addCoins);
-  const useArenaFight = useAuthStore(state => state.useArenaFight);
+  const consumeArenaFight = useAuthStore(state => state.useArenaFight);
 
   const [opponents, setOpponents] = useState<CombatStats[]>([]);
   const [selectedEnemy, setSelectedEnemy] = useState<CombatStats | null>(null);
@@ -138,7 +164,6 @@ export const Arena = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [attackerAnim, setAttackerAnim] = useState<string>('');
   const [defenderAnim, setDefenderAnim] = useState<string>('');
-  const [critFlash, setCritFlash] = useState(false);
   const [lastHitEffect, setLastHitEffect] = useState<'slash-1' | 'slash-2' | 'dodge-wave' | 'block-shield' | null>(null);
 
   const [floatsP, setFloatsP] = useState<FloatingText[]>([]);
@@ -172,46 +197,43 @@ export const Arena = () => {
         const floatId = Date.now();
         if (entry.dmgType === 'crit' || entry.dmgType === 'normal') {
              const defIsPlayer = entry.attackerName === enemy?.name;
-             const color = entry.dmgType === 'crit' ? '#fbbf24' : '#ef4444';
-             const prefix = entry.dmgType === 'crit' ? 'KRYT! -' : '-';
+             const color = entry.dmgType === 'crit' ? 'var(--accent)' : 'var(--danger)';
+             const prefix = entry.dmgType === 'crit' ? (lang === 'pl' ? 'KRYT! -' : 'CRIT! -') : '-';
              const text = `${prefix}${entry.finalDmg} HP`;
 
              // Randomize slash effect graphic
              setLastHitEffect(Math.random() > 0.5 ? 'slash-1' : 'slash-2');
 
-             if (entry.dmgType === 'crit') {
-               setCritFlash(true);
-               setTimeout(() => setCritFlash(false), 200);
-             }
-
              if (defIsPlayer) {
-                 setDefenderAnim('shake-p');
-                 setFloatsP(prev => [...prev, { id: floatId, text, color }]);
+                  setDefenderAnim('shake-p');
+                  setFloatsP(prev => [...prev, { id: floatId, text, color }]);
              } else {
-                 setDefenderAnim('shake-e');
-                 setFloatsE(prev => [...prev, { id: floatId, text, color }]);
+                  setDefenderAnim('shake-e');
+                  setFloatsE(prev => [...prev, { id: floatId, text, color }]);
              }
         } 
         else if (entry.dmgType === 'dodge') {
              const defIsPlayer = entry.attackerName === enemy?.name;
              setLastHitEffect('dodge-wave');
+             const text = lang === 'pl' ? '💨 UNIK!' : '💨 DODGE!';
              if (defIsPlayer) {
-                 setDefenderAnim('ghost-p');
-                 setFloatsP(prev => [...prev, { id: floatId, text: '💨 UNIK!', color: '#38bdf8' }]);
+                  setDefenderAnim('ghost-p');
+                  setFloatsP(prev => [...prev, { id: floatId, text, color: 'var(--text-secondary)' }]);
              } else {
-                 setDefenderAnim('ghost-e');
-                 setFloatsE(prev => [...prev, { id: floatId, text: '💨 UNIK!', color: '#38bdf8' }]);
+                  setDefenderAnim('ghost-e');
+                  setFloatsE(prev => [...prev, { id: floatId, text, color: 'var(--text-secondary)' }]);
              }
         }
         else if (entry.dmgType === 'block') {
              const defIsPlayer = entry.attackerName === enemy?.name;
              setLastHitEffect('block-shield');
+             const text = lang === 'pl' ? '🛡 BLOK!' : '🛡 BLOCK!';
              if (defIsPlayer) {
-                 setDefenderAnim('block-p');
-                 setFloatsP(prev => [...prev, { id: floatId, text: '🛡 BLOK!', color: '#a3e635' }]);
+                  setDefenderAnim('block-p');
+                  setFloatsP(prev => [...prev, { id: floatId, text, color: 'var(--text-primary)' }]);
              } else {
-                 setDefenderAnim('block-e');
-                 setFloatsE(prev => [...prev, { id: floatId, text: '🛡 BLOK!', color: '#a3e635' }]);
+                  setDefenderAnim('block-e');
+                  setFloatsE(prev => [...prev, { id: floatId, text, color: 'var(--text-primary)' }]);
              }
         }
 
@@ -228,32 +250,35 @@ export const Arena = () => {
         }, 900);
 
         if (entry.isEnd) {
-          setIsFighting(false);
-          setIsGameOver(true);
-          let pGain = 0;
-          let cGain = 0;
-          if (entry.won && enemy) {
-             let basePrestige = Math.floor(enemy.totalLvl / 2) + 10;
-             let baseCoins = Math.floor(enemy.totalLvl * 1.5) + 20;
+           setIsFighting(false);
+           setIsGameOver(true);
+           let pGain = 0;
+           let cGain = 0;
+           if (entry.won && enemy) {
+              const basePrestige = Math.floor(enemy.totalLvl / 2) + 10;
+              const baseCoins = Math.floor(enemy.totalLvl * 1.5) + 20;
 
-             let multiplier = 1.0;
-             if (enemy.difficulty === 'weaker') multiplier = 0.5;
-             else if (enemy.difficulty === 'stronger') multiplier = 1.6;
+              let multiplier = 1.0;
+              if (enemy.difficulty === 'weaker') multiplier = 0.5;
+              else if (enemy.difficulty === 'stronger') multiplier = 1.6;
 
-             pGain = Math.round(basePrestige * multiplier);
-             cGain = Math.round(baseCoins * multiplier);
+              pGain = Math.round(basePrestige * multiplier);
+              cGain = Math.round(baseCoins * multiplier);
 
-             addPrestige(pGain);
-             addCoins(cGain);
-             setCombatLog(prev => [...prev, `🏆 NAGRODA: Zyskujesz +${pGain} Prestiżu, +${cGain} Złota.`]);
-          }
-          setLastRewards({ gold: cGain, prestige: pGain, won: !!entry.won });
+              addPrestige(pGain);
+              addCoins(cGain);
+              setCombatLog(prev => [...prev, lang === 'pl' 
+                ? `🏆 NAGRODA: Zyskujesz +${pGain} Prestiżu, +${cGain} Złota.`
+                : `🏆 REWARD: You gain +${pGain} Prestige, +${cGain} Gold.`
+              ]);
+           }
+           setLastRewards({ gold: cGain, prestige: pGain, won: !!entry.won });
         }
       }, 700); 
       
       return () => clearTimeout(timer);
     }
-  }, [logQueue, isFighting, player?.name, enemy?.name, enemy, addPrestige, addCoins]);
+  }, [logQueue, isFighting, player?.name, enemy?.name, enemy, addPrestige, addCoins, lang]);
 
   if (!user) return null;
 
@@ -268,24 +293,29 @@ export const Arena = () => {
 
   const findOpponents = () => {
     setIsSearching(true);
-    setSearchLogs(["📡 Nawiązywanie połączenia z radarami Areny...", "🛡️ Skanowanie sygnatur gladiatorów w pobliżu poziomu mocy: " + playerBaseTotalSum]);
+    setSearchLogs([
+      lang === 'pl' ? "📡 Nawiązywanie połączenia z radarami Areny..." : "📡 Establishing connection with Arena radars...",
+      (lang === 'pl' ? "🛡️ Skanowanie sygnatur gladiatorów w pobliżu poziomu mocy: " : "🛡️ Scanning gladiator signatures near power level: ") + playerBaseTotalSum
+    ]);
     
     setTimeout(() => {
-      setSearchLogs(prev => [...prev, "🛰️ Zlokalizowano pasujących wojowników w sektorze południowym."]);
+      setSearchLogs(prev => [...prev, lang === 'pl' ? "🛰️ Zlokalizowano pasujących wojowników w sektorze południowym." : "🛰️ Located matching fighters in the southern sector."]);
     }, 600);
     
     setTimeout(() => {
-      setSearchLogs(prev => [...prev, "⚔️ Trzy sygnatury bojowe pobrane. Generowanie kart pretendentów..."]);
+      setSearchLogs(prev => [...prev, lang === 'pl' ? "⚔️ Sygnatury bojowe pobrane. Generowanie kart pretendentów..." : "⚔️ Combat signatures retrieved. Generating contender cards..."]);
     }, 1300);
 
     setTimeout(() => {
-      let ops: CombatStats[] = [];
+      const ops: CombatStats[] = [];
       
       // 2 Weaker (Słaby)
       for(let i=0; i<2; i++) {
-         let variance = -0.25 + (Math.random() * 0.1); 
-         let eSum = Math.max(6, Math.round(playerBaseTotalSum * (1 + variance)));
-         let rName = `${NICKNAMES[Math.floor(Math.random()*NICKNAMES.length)]} ${NOUNS[Math.floor(Math.random()*NOUNS.length)]}`;
+         const variance = -0.25 + (Math.random() * 0.1); 
+         const eSum = Math.max(6, Math.round(playerBaseTotalSum * (1 + variance)));
+         const rName = lang === 'pl'
+           ? `${NICKNAMES_PL[Math.floor(Math.random()*NICKNAMES_PL.length)]} ${NOUNS_PL[Math.floor(Math.random()*NOUNS_PL.length)]}`
+           : `${NICKNAMES_EN[Math.floor(Math.random()*NICKNAMES_EN.length)]} ${NOUNS_EN[Math.floor(Math.random()*NOUNS_EN.length)]}`;
          const stat = calculateStatsFromSum(rName, eSum);
          stat.difficulty = 'weaker';
          ops.push(stat);
@@ -293,9 +323,11 @@ export const Arena = () => {
       
       // 2 Balanced (Równy)
       for(let i=0; i<2; i++) {
-         let variance = -0.05 + (Math.random() * 0.1); 
-         let eSum = Math.max(6, Math.round(playerBaseTotalSum * (1 + variance)));
-         let rName = `${NICKNAMES[Math.floor(Math.random()*NICKNAMES.length)]} ${NOUNS[Math.floor(Math.random()*NOUNS.length)]}`;
+         const variance = -0.05 + (Math.random() * 0.1); 
+         const eSum = Math.max(6, Math.round(playerBaseTotalSum * (1 + variance)));
+         const rName = lang === 'pl'
+           ? `${NICKNAMES_PL[Math.floor(Math.random()*NICKNAMES_PL.length)]} ${NOUNS_PL[Math.floor(Math.random()*NOUNS_PL.length)]}`
+           : `${NICKNAMES_EN[Math.floor(Math.random()*NICKNAMES_EN.length)]} ${NOUNS_EN[Math.floor(Math.random()*NOUNS_EN.length)]}`;
          const stat = calculateStatsFromSum(rName, eSum);
          stat.difficulty = 'balanced';
          ops.push(stat);
@@ -303,9 +335,11 @@ export const Arena = () => {
       
       // 2 Stronger (Silny)
       for(let i=0; i<2; i++) {
-         let variance = 0.15 + (Math.random() * 0.15); 
-         let eSum = Math.max(6, Math.round(playerBaseTotalSum * (1 + variance)));
-         let rName = `${NICKNAMES[Math.floor(Math.random()*NICKNAMES.length)]} ${NOUNS[Math.floor(Math.random()*NOUNS.length)]}`;
+         const variance = 0.15 + (Math.random() * 0.15); 
+         const eSum = Math.max(6, Math.round(playerBaseTotalSum * (1 + variance)));
+         const rName = lang === 'pl'
+           ? `${NICKNAMES_PL[Math.floor(Math.random()*NICKNAMES_PL.length)]} ${NOUNS_PL[Math.floor(Math.random()*NOUNS_PL.length)]}`
+           : `${NICKNAMES_EN[Math.floor(Math.random()*NICKNAMES_EN.length)]} ${NOUNS_EN[Math.floor(Math.random()*NOUNS_EN.length)]}`;
          const stat = calculateStatsFromSum(rName, eSum);
          stat.difficulty = 'stronger';
          ops.push(stat);
@@ -320,12 +354,16 @@ export const Arena = () => {
   const generateEncounterLog = (pStats: CombatStats, eStats: CombatStats): CombatLogEntry[] => {
     let pHP = pStats.hp;
     let eHP = eStats.hp;
-    let logs: CombatLogEntry[] = [];
+    const logs: CombatLogEntry[] = [];
 
     let pTurn = pStats.energy >= eStats.energy;
 
+    const startMsg = lang === 'pl'
+      ? `⚔️ Rozpoczęcie pojedynku! Sędzia daje znak. Inicjatywę przejmuje ${pTurn ? pStats.name : eStats.name} (${pTurn ? 'Szybszy refleks' : 'Zaskoczenie'}).`
+      : `⚔️ Match starts! The referee gives the signal. ${pTurn ? pStats.name : eStats.name} takes initiative (${pTurn ? 'Faster reflexes' : 'Surprise'}).`;
+
     logs.push({ 
-       msg: `⚔️ Rozpoczęcie pojedynku! Sędzia daje znak. Inicjatywę przejmuje ${pTurn ? pStats.name : eStats.name} (${pTurn ? 'Szybszy refleks' : 'Zaskoczenie'}).`, 
+       msg: startMsg, 
        newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: false 
      });
     
@@ -333,36 +371,43 @@ export const Arena = () => {
     while(pHP > 0 && eHP > 0 && turns < 100) {
       turns++;
 
-      let attacker = pTurn ? pStats : eStats;
-      let defender = pTurn ? eStats : pStats;
-      let action = ATTACK_ACTIONS[Math.floor(Math.random() * ATTACK_ACTIONS.length)];
+      const attacker = pTurn ? pStats : eStats;
+      const defender = pTurn ? eStats : pStats;
+      const action = (lang === 'pl' ? ATTACK_ACTIONS_PL : ATTACK_ACTIONS_EN)[Math.floor(Math.random() * (lang === 'pl' ? ATTACK_ACTIONS_PL.length : ATTACK_ACTIONS_EN.length))];
 
-      let isDodge = Math.random() * 100 < defender.dodge;
+      const isDodge = Math.random() * 100 < defender.dodge;
       if (isDodge) {
          logs.push({ 
-            msg: `💨 ${attacker.name} ${action}, ale ${defender.name} wymanewrował cios sprytnym unikiem!`, 
+            msg: lang === 'pl'
+              ? `💨 ${attacker.name} ${action}, ale ${defender.name} wymanewrował cios sprytnym unikiem!`
+              : `💨 ${attacker.name} ${action}, but ${defender.name} evaded the blow with a clever dodge!`, 
             newPlayerHp: pHP, newEnemyHp: eHP, attackerName: attacker.name, isEnd: false, dmgType: 'dodge' 
          });
       } else {
-         // Block chance based on armor (~15% base + armor bonus)
-         let isBlock = Math.random() * 100 < Math.min(40, (defender.armor * 1.2) + 8);
-         let isCrit = !isBlock && Math.random() * 100 < attacker.crit;
-         let rawDmg = attacker.damage * (isCrit ? 2.2 : 1) * (0.85 + Math.random() * 0.3);
-         let blockedPct = isBlock ? 0.72 : 0;
-         let finalDmg = Math.max(1, Math.round(rawDmg * (1 - blockedPct) - (defender.armor * 0.4)));
+         const isBlock = Math.random() * 100 < Math.min(40, (defender.armor * 1.2) + 8);
+         const isCrit = !isBlock && Math.random() * 100 < attacker.crit;
+         const rawDmg = attacker.damage * (isCrit ? 2.2 : 1) * (0.85 + Math.random() * 0.3);
+         const blockedPct = isBlock ? 0.72 : 0;
+         const finalDmg = Math.max(1, Math.round(rawDmg * (1 - blockedPct) - (defender.armor * 0.4)));
          
          if (pTurn) eHP = Math.max(0, eHP - finalDmg);
          else pHP = Math.max(0, pHP - finalDmg);
 
          if (isBlock) {
            logs.push({ 
-               msg: `🛡 ${defender.name} blokuje tarczą cios ${attacker.name}a! Pochłonięto większość energii (${finalDmg} przenikło).`, 
+               msg: lang === 'pl'
+                 ? `🛡 ${defender.name} blokuje tarczą cios ${attacker.name}a! Pochłonięto większość energii (${finalDmg} przenikło).`
+                 : `🛡 ${defender.name} blocks ${attacker.name}'s strike with a shield! Absorbed most energy (${finalDmg} penetrated).`, 
                newPlayerHp: pHP, newEnemyHp: eHP, attackerName: attacker.name, isEnd: false, dmgType: 'block', finalDmg 
            });
          } else {
-           let critStr = isCrit ? `🔥 KRYTYCZNIE!` : `💥`;
+           const critStr = isCrit 
+             ? (lang === 'pl' ? `🔥 KRYTYCZNIE!` : `🔥 CRITICAL!`) 
+             : `💥`;
            logs.push({ 
-               msg: `${critStr} ${attacker.name} ${action} i zadaje ${finalDmg} obrażeń dla ${defender.name}!`, 
+               msg: lang === 'pl'
+                 ? `${critStr} ${attacker.name} ${action} i zadaje ${finalDmg} obrażeń dla ${defender.name}!`
+                 : `${critStr} ${attacker.name} ${action} and deals ${finalDmg} damage to ${defender.name}!`, 
                newPlayerHp: pHP, newEnemyHp: eHP, attackerName: attacker.name, isEnd: false, dmgType: isCrit ? 'crit' : 'normal', finalDmg 
            });
          }
@@ -373,19 +418,30 @@ export const Arena = () => {
     }
 
     if (pHP > 0) {
-      logs.push({ msg: `👑 ZWYCIĘSTWO! ${pStats.name} pokonuje rywala i triumfuje na arenie!`, newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: true, won: true });
+      logs.push({ 
+        msg: lang === 'pl'
+          ? `👑 ZWYCIĘSTWO! ${pStats.name} pokonuje rywala i triumfuje na arenie!`
+          : `👑 VICTORY! ${pStats.name} defeats the rival and triumphs in the arena!`, 
+        newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: true, won: true 
+      });
     } else {
-      logs.push({ msg: `💀 PORAŻKA. ${eStats.name} powala Cię na ziemię jednym mocnym uderzeniem.`, newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: true, won: false });
+      logs.push({ 
+        msg: lang === 'pl'
+          ? `💀 PORAŻKA. ${eStats.name} powala Cię na ziemię jednym mocnym uderzeniem.`
+          : `💀 DEFEAT. ${eStats.name} knocks you to the ground with a powerful blow.`, 
+        newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: true, won: false 
+      });
     }
 
     return logs;
   };
 
-  const handleStartFight = () => {
+  const handleStartFight = async () => {
     if (!selectedEnemy) return;
-    
-    if (!useArenaFight()) {
-       alert("Osiągnięto limit walk na dzisiaj! Wróć jutro.");
+
+    const allowed = await consumeArenaFight();
+    if (!allowed) {
+       alert(t('arena.noFights'));
        return;
     }
 
@@ -397,7 +453,7 @@ export const Arena = () => {
     
     const simLog = generateEncounterLog(pStart, eStart);
     setLogQueue(simLog);
-    setCombatLog([`🗡️ Wkraczasz na piasek Koloseum...`]);
+    setCombatLog([lang === 'pl' ? `🗡️ Wkraczasz na piasek Koloseum...` : `🗡️ You step onto the sands of the Colosseum...`]);
     setIsFighting(true);
     setIsGameOver(false);
   };
@@ -427,6 +483,17 @@ export const Arena = () => {
   } else if (defenderAnim === 'block-e') {
     enemyStyle = { animation: 'arena-block-enemy 0.35s forwards' };
   }
+
+  const getDifficultyLabel = (diff?: string) => {
+    if (diff === 'stronger') return t('arena.hard');
+    if (diff === 'weaker') return t('arena.easy');
+    return t('arena.medium');
+  };
+
+  const getPrestigeRankName = (prestige: number) => {
+    const raw = getPrestigeRank(prestige).name;
+    return t(`dashboard.prestigeRanks.${raw}`, raw);
+  };
 
   return (
     <>
@@ -466,14 +533,14 @@ export const Arena = () => {
       }
       @keyframes arena-block {
         0%   { transform: translateX(0) scale(1); filter: brightness(1); }
-        20%  { transform: translateX(-10px) scale(1.08); filter: brightness(2) drop-shadow(0 0 12px #a3e635); }
-        55%  { transform: translateX(-6px) scale(1.04); filter: brightness(1.5) drop-shadow(0 0 8px #a3e635); }
+        20%  { transform: translateX(-10px) scale(1.08); filter: brightness(1.6) drop-shadow(0 0 12px rgba(249,115,22,0.6)); }
+        55%  { transform: translateX(-6px) scale(1.04); filter: brightness(1.3) drop-shadow(0 0 8px rgba(249,115,22,0.4)); }
         100% { transform: translateX(0) scale(1); filter: brightness(1); }
       }
       @keyframes arena-block-enemy {
         0%   { transform: translateX(0) scale(1); filter: brightness(1); }
-        20%  { transform: translateX(10px) scale(1.08); filter: brightness(2) drop-shadow(0 0 12px #a3e635); }
-        55%  { transform: translateX(6px) scale(1.04); filter: brightness(1.5) drop-shadow(0 0 8px #a3e635); }
+        20%  { transform: translateX(10px) scale(1.08); filter: brightness(1.6) drop-shadow(0 0 12px rgba(249,115,22,0.6)); }
+        55%  { transform: translateX(6px) scale(1.04); filter: brightness(1.3) drop-shadow(0 0 8px rgba(249,115,22,0.4)); }
         100% { transform: translateX(0) scale(1); filter: brightness(1); }
       }
       @keyframes block-shield-anim {
@@ -483,85 +550,62 @@ export const Arena = () => {
         100% { transform: translate(-50%, -50%) scale(1.4) rotate(0deg);  opacity: 0; }
       }
       .crit-flash-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(255, 255, 255, 0.45);
-        z-index: 100;
-        pointer-events: none;
-        transition: opacity 0.2s ease-out;
+        display: none;
       }
     `}} />
 
-    {critFlash && <div className="crit-flash-overlay" />}
-
-    <div className="animate-fade-in container" style={{ paddingTop: '24px', paddingBottom: '100px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="container app-page page-arena page-transition" style={{ display: 'flex', flexDirection: 'column' }}>
       
       <header style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '6px' }}>Arena Gladiatorów</h1>
+        <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '6px' }}>{t('arena.title')}</h1>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', color: myLeague.color, fontWeight: 'bold', border: `1px solid ${myLeague.color}33` }}>
-              👑 {myLeague.name}
+            <span style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '12px', background: 'var(--surface-2)', color: myLeague.color, fontWeight: 'bold', border: '1px solid var(--border-color)' }}>
+              {getPrestigeRankName(user.prestige || 0)}
             </span>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Prestiż: {user.prestige || 0}</span>
-            <span style={{ fontSize: '13px', color: currentFightsLeft > 0 ? '#34d399' : '#ef4444', fontWeight: 'bold' }}>
-               Walki: {currentFightsLeft}/5
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {lang === 'pl' ? 'Prestiż' : 'Prestige'}: {user.prestige || 0}
+            </span>
+            <span style={{ fontSize: '13px', color: currentFightsLeft > 0 ? 'var(--text-secondary)' : 'var(--danger)', fontWeight: 'bold' }}>
+              {lang === 'pl' ? `Walki: ${currentFightsLeft}/5` : `Fights: ${currentFightsLeft}/5`}
             </span>
         </div>
       </header>
 
       {/* LOBBY / SEARCH SCREEN */}
       {!player || !enemy ? (
-        <section className="glass-panel" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', overflow: 'hidden' }}>
-          
-          {/* Neon cage background decorations */}
-          <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '120px', height: '120px', borderRadius: '50%', border: '2px dashed var(--border-color)', opacity: 0.1, pointerEvents: 'none' }} />
+        <section className="card" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', overflow: 'hidden' }}>
           
           {/* SEARCHING RADAR ANIMATION */}
           {isSearching ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 10px', flex: 1 }}>
               <div style={{ 
                 position: 'relative', 
-                width: '160px', 
-                height: '160px', 
+                width: '96px', 
+                height: '96px', 
                 borderRadius: '50%', 
-                border: '3px solid rgba(249,115,22,0.15)',
-                boxShadow: '0 0 30px rgba(249,115,22,0.1)',
-                marginBottom: '30px',
-                animation: 'sweep-radar 2s infinite ease-in-out',
+                border: '2px solid var(--border)',
+                borderTopColor: 'var(--accent)',
+                marginBottom: '28px',
+                animation: 'spin-radar 1s infinite linear',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                {/* Rotating scanner beam */}
-                <div style={{ 
-                  position: 'absolute', 
-                  inset: 0, 
-                  borderRadius: '50%',
-                  background: 'conic-gradient(from 0deg, var(--accent-base) 0deg, transparent 90deg, transparent 360deg)',
-                  opacity: 0.25,
-                  animation: 'spin-radar 1.5s infinite linear' 
-                }} />
-                
-                {/* Center target crosshair */}
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px dashed var(--accent-base)', display: 'flex', alignItems: 'center', justifyItems: 'center', color: 'var(--accent-base)' }}>
-                  <Cpu size={20} style={{ margin: 'auto', animation: 'pulse 1s infinite' }} />
-                </div>
-                
-                {/* Fake discovered blip nodes */}
-                <div style={{ position: 'absolute', top: '25%', left: '30%', width: '8px', height: '8px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 10px #34d399' }} />
-                <div style={{ position: 'absolute', bottom: '30%', right: '25%', width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 10px #f59e0b' }} />
+                <Cpu size={22} color="var(--accent)" />
               </div>
               
-              <h4 style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Wyszukiwanie Przeciwników...</h4>
+              <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {lang === 'pl' ? 'Wyszukiwanie Przeciwników...' : 'Searching for Opponents...'}
+              </h4>
               <div style={{ 
                 width: '100%', 
-                background: 'rgba(0,0,0,0.3)', 
+                background: 'var(--surface-2)', 
                 border: '1px solid var(--border-color)', 
                 borderRadius: '8px', 
                 padding: '12px', 
                 fontFamily: 'monospace', 
                 fontSize: '11px', 
-                color: 'var(--accent-base)', 
+                color: 'var(--text-2)', 
                 textAlign: 'left',
                 height: '150px',
                 overflowY: 'auto',
@@ -577,32 +621,36 @@ export const Arena = () => {
               {opponents.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 10px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <Search size={44} color={myLeague.color} style={{ margin: '0 auto 16px', opacity: 0.8 }} />
-                  <h3 style={{ fontSize: '19px', marginBottom: '8px' }}>Gotowy na starcie?</h3>
+                  <h3 style={{ fontSize: '19px', marginBottom: '8px' }}>
+                    {lang === 'pl' ? 'Gotowy na starcie?' : 'Ready for battle?'}
+                  </h3>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', maxWidth: '320px', margin: '0 auto 24px' }}>
-                    Skaner matchmakingu dobierze sześciu gladiatorów o poziomach dopasowanych do Twojej łącznej siły fizycznej.
+                    {lang === 'pl' 
+                      ? 'Skaner matchmakingu dobierze sześciu gladiatorów o poziomach dopasowanych do Twojej łącznej siły fizycznej.'
+                      : 'The matchmaking scanner will find six gladiators with levels matched to your overall physical strength.'}
                   </p>
-                  <button className="btn btn-primary" onClick={findOpponents} style={{ width: '100%', padding: '16px', fontSize: '17px', boxShadow: 'var(--shadow-glow)' }}>
-                     Rozpocznij Skanowanie Areny
+                  <button className="btn btn-primary" onClick={findOpponents} style={{ width: '100%', padding: '14px', fontSize: '16px' }}>
+                    {t('arena.scanBtn')}
                   </button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                      <Flame size={18} color="var(--accent-base)" />
-                     <h3 style={{ fontSize: '16px', margin: 0 }}>Wybierz cel pojedynku:</h3>
+                     <h3 style={{ fontSize: '16px', margin: 0 }}>
+                       {lang === 'pl' ? 'Wybierz cel pojedynku:' : 'Select battle target:'}
+                     </h3>
                    </div>
                    
                    {opponents.map((opp, idx) => {
-                      let diffLabel = "Równy";
-                      let diffColor = "#fbbf24";
+                      const diffLabel = getDifficultyLabel(opp.difficulty);
+                      let diffColor = "var(--text-secondary)";
                       let multLabel = "1.0x";
                       if (opp.difficulty === 'stronger') {
-                         diffLabel = "Silny";
-                         diffColor = "#ef4444";
+                         diffColor = "var(--danger)";
                          multLabel = "1.6x";
                       } else if (opp.difficulty === 'weaker') {
-                         diffLabel = "Słaby";
-                         diffColor = "#34d399";
+                         diffColor = "var(--text-secondary)";
                          multLabel = "0.5x";
                       }
                       
@@ -615,30 +663,34 @@ export const Arena = () => {
                           onClick={() => setSelectedEnemy(opp)}
                           style={{
                              padding: '14px', borderRadius: '12px', cursor: 'pointer',
-                             border: selectedEnemy === opp ? `2px solid var(--accent-base)` : '1px solid var(--border-color)',
-                             background: selectedEnemy === opp ? 'rgba(249,115,22,0.1)' : 'var(--surface-color)',
+                             border: selectedEnemy === opp ? `1px solid var(--accent-base)` : '1px solid var(--border-color)',
+                             background: selectedEnemy === opp ? 'var(--accent-soft)' : 'var(--surface-color)',
                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                              transition: '0.2s',
-                             boxShadow: selectedEnemy === opp ? '0 0 15px rgba(249,115,22,0.2)' : 'none'
+                             boxShadow: 'none'
                           }}
                         >
                            <div style={{ textAlign: 'left' }}>
                               <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--text-primary)' }}>{opp.name}</div>
                               <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Moc: {opp.totalLvl}</span>
+                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                   {lang === 'pl' ? 'Moc' : 'Power'}: {opp.totalLvl}
+                                 </span>
                                  <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--text-muted)' }} />
                                  <span style={{ fontSize: '11px', color: diffColor, fontWeight: 'bold' }}>{diffLabel} ({multLabel})</span>
                               </div>
-                              <div style={{ fontSize: '11px', color: '#fbbf24', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Trophy size={11} color="#a855f7" /> +{estPrestige}</span>
-                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Coins size={11} color="#fbbf24" /> +{estCoins}</span>
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Trophy size={11} color="var(--text-secondary)" /> +{estPrestige}</span>
+                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Coins size={11} color="var(--accent)" /> +{estCoins}</span>
                               </div>
                            </div>
                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                              <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Heart size={12} fill="#ef4444" /> {opp.hp} HP
+                              <div style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                 <Heart size={12} color="var(--danger)" fill="currentColor" /> {opp.hp} HP
                               </div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Pancerz: {opp.armor}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                {lang === 'pl' ? 'Pancerz' : 'Armor'}: {opp.armor}
+                              </div>
                            </div>
                         </div>
                       );
@@ -648,12 +700,12 @@ export const Arena = () => {
                      className="btn btn-primary" 
                      disabled={!selectedEnemy || currentFightsLeft <= 0}
                      onClick={handleStartFight}
-                     style={{ width: '100%', padding: '16px', marginTop: '16px', fontSize: '16px', boxShadow: selectedEnemy ? 'var(--shadow-glow)' : 'none' }}
+                     style={{ width: '100%', padding: '14px', marginTop: '16px', fontSize: '15px' }}
                    >
-                     <Swords size={20} /> {currentFightsLeft > 0 ? 'ROZPOCZNIJ WALKĘ' : 'BRAK PRÓB NA DZIŚ'}
+                     <Swords size={20} /> {currentFightsLeft > 0 ? (lang === 'pl' ? 'ROZPOCZNIJ WALKĘ' : 'START FIGHT') : (lang === 'pl' ? 'BRAK PRÓB NA DZIŚ' : 'NO FIGHTS LEFT TODAY')}
                    </button>
                    <button className="btn btn-secondary" onClick={findOpponents} style={{ width: '100%', padding: '12px' }}>
-                     Wyszukaj innych rywali (Skan)
+                     {lang === 'pl' ? 'Wyszukaj innych rywali (Skan)' : 'Search for other rivals (Scan)'}
                    </button>
                 </div>
               )}
@@ -664,29 +716,29 @@ export const Arena = () => {
         /* ACTIVE COMBAT ARENA SCREEN */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
           
-          {/* THE HOLOGRAM GRID BATTLEFIELD */}
+          {/* ARENA BATTLEFIELD */}
           <div style={{ 
             position: 'relative', 
-            height: '240px', 
-            background: 'radial-gradient(circle at center, #1b1310 0%, #0c0a09 100%)',
-            border: '2px solid var(--accent-base)',
-            borderRadius: '16px', 
+            height: '220px', 
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: '14px', 
             overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '20px',
-            boxShadow: 'inset 0 0 40px rgba(249,115,22,0.3), 0 0 25px rgba(249,115,22,0.15)'
+            boxShadow: 'none'
           }}>
-            {/* Hologram neon lines */}
-            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(249,115,22,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,0.04) 1px, transparent 1px)', backgroundSize: '20px 20px', pointerEvents: 'none' }} />
+            {/* Subtle grid */}
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)', backgroundSize: '24px 24px', pointerEvents: 'none' }} />
             
             {/* Visual Slashing Overlays */}
             {lastHitEffect === 'slash-1' && (
               <div style={{ 
-                position: 'absolute', top: '50%', left: '50%', width: '120px', height: '6px', 
-                background: 'linear-gradient(90deg, transparent, #ffffff, var(--accent-base), transparent)', 
-                boxShadow: '0 0 15px #ff7a00, 0 0 30px #ff3c00',
+                position: 'absolute', top: '50%', left: '50%', width: '120px', height: '4px', 
+                background: 'linear-gradient(90deg, transparent, var(--accent), transparent)', 
+                boxShadow: 'none',
                 borderRadius: '50%',
                 zIndex: 30,
                 transform: 'translate(-50%, -50%) rotate(45deg)',
@@ -695,9 +747,9 @@ export const Arena = () => {
             )}
             {lastHitEffect === 'slash-2' && (
               <div style={{ 
-                position: 'absolute', top: '50%', left: '50%', width: '120px', height: '6px', 
-                background: 'linear-gradient(90deg, transparent, #ffffff, #ef4444, transparent)', 
-                boxShadow: '0 0 15px #ff0055, 0 0 30px #ff0000',
+                position: 'absolute', top: '50%', left: '50%', width: '120px', height: '4px', 
+                background: 'linear-gradient(90deg, transparent, var(--danger), transparent)', 
+                boxShadow: 'none',
                 borderRadius: '50%',
                 zIndex: 30,
                 transform: 'translate(-50%, -50%) rotate(-45deg)',
@@ -708,8 +760,8 @@ export const Arena = () => {
               <div style={{ 
                 position: 'absolute', top: '50%', left: '50%', width: '80px', height: '80px', 
                 borderRadius: '50%',
-                border: '4px solid #38bdf8',
-                boxShadow: '0 0 20px #38bdf8',
+                border: '3px solid var(--text-secondary)',
+                boxShadow: 'none',
                 zIndex: 30,
                 transform: 'translate(-50%, -50%)',
                 animation: 'dodge-wave-anim 0.35s ease-out forwards'
@@ -722,10 +774,9 @@ export const Arena = () => {
                 zIndex: 40,
                 animation: 'block-shield-anim 0.4s ease-out forwards',
                 transform: 'translate(-50%, -50%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                filter: 'drop-shadow(0 0 18px #a3e635)'
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
-                <svg viewBox="0 0 24 24" width="70" height="70" stroke="#a3e635" strokeWidth="2" fill="rgba(163,230,53,0.15)" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" width="70" height="70" stroke="var(--text-primary)" strokeWidth="2" fill="rgba(236,238,241,0.1)" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
               </div>
@@ -738,23 +789,24 @@ export const Arena = () => {
             }}>
               {/* Avatar Shield Frame */}
               <div style={{ 
-                width: '74px', height: '74px', borderRadius: '50%', 
-                border: '3px solid var(--accent-base)',
-                boxShadow: '0 0 20px rgba(249,115,22,0.4)',
-                background: '#1c1917',
+                width: '64px', height: '64px', borderRadius: '50%', 
+                border: '2px solid var(--accent-base)',
+                background: 'var(--surface)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 position: 'relative'
               }}>
-                <svg viewBox="0 0 24 24" width="36" height="36" stroke="var(--accent-base)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 4px var(--accent-base))' }}>
+                <svg viewBox="0 0 24 24" width="30" height="30" stroke="var(--accent-base)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
                 {/* Prestige Rank indicator */}
-                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--accent-base)', color: 'black', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
-                  TY
+                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--accent-base)', color: '#1a0b02', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
+                  {lang === 'pl' ? 'TY' : 'YOU'}
                 </div>
               </div>
               <strong style={{ fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px' }}>{player.name}</strong>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Moc: {player.totalLvl}</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                {lang === 'pl' ? 'Moc' : 'Power'}: {player.totalLvl}
+              </div>
               
               {/* Flying Damage Floating Texts for Player */}
               {floatsP.map(f => (
@@ -765,17 +817,17 @@ export const Arena = () => {
             {/* CENTER FLAME OF WAR / VS BADGE */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', zIndex: 5 }}>
               <div style={{ 
-                width: '42px', height: '42px', borderRadius: '50%', 
-                background: 'linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)',
-                boxShadow: '0 0 25px #ef4444',
-                color: 'white', fontWeight: 'bold', fontSize: '16px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                animation: 'pulse 1.2s infinite'
+                width: '40px', height: '40px', borderRadius: '50%', 
+                background: 'var(--surface)',
+                border: '1px solid var(--accent-border)',
+                color: 'var(--accent)', fontWeight: '700', fontSize: '14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
                 VS
               </div>
-              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Runda {combatLog.length}</span>
+              <span style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+                {lang === 'pl' ? 'Runda' : 'Round'} {combatLog.length}
+              </span>
             </div>
 
             {/* RIGHTSIDE: ENEMY FIGHTER PORTRAIT */}
@@ -785,26 +837,27 @@ export const Arena = () => {
             }}>
               {/* Enemy Boss Frame */}
               <div style={{ 
-                width: '74px', height: '74px', borderRadius: '50%', 
-                border: '3px solid #ef4444',
-                boxShadow: '0 0 20px rgba(239,68,68,0.4)',
-                background: '#1c1917',
+                width: '64px', height: '64px', borderRadius: '50%', 
+                border: '2px solid var(--danger)',
+                background: 'var(--surface)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 position: 'relative'
               }}>
-                <svg viewBox="0 0 24 24" width="36" height="36" stroke="#ef4444" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 4px #ef4444)' }}>
+                <svg viewBox="0 0 24 24" width="30" height="30" stroke="var(--danger)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
                   <line x1="12" y1="22" x2="12" y2="15.5" />
                   <polyline points="22 8.5 12 15.5 2 8.5" />
                   <polyline points="2 15.5 12 15.5 22 15.5" />
                   <polyline points="12 2 12 15.5" />
                 </svg>
-                <div style={{ position: 'absolute', bottom: '-4px', background: '#ef4444', color: 'white', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
-                  WÓDZ
+                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--danger)', color: 'white', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
+                  {lang === 'pl' ? 'RYWAL' : 'RIVAL'}
                 </div>
               </div>
               <strong style={{ fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px' }}>{enemy.name}</strong>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Moc: {enemy.totalLvl}</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                {lang === 'pl' ? 'Moc' : 'Power'}: {enemy.totalLvl}
+              </div>
               
               {/* Flying Damage Floating Texts for Enemy */}
               {floatsE.map(f => (
@@ -815,26 +868,28 @@ export const Arena = () => {
           </div>
 
           {/* ACTIVE STATUS BARS */}
-          <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
             {/* PLAYER HEALTH & ENERGY */}
             <div style={{ textAlign: 'left' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>{player.name} (Ty)</span>
-                <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: 'bold' }}>{player.hp} / {player.maxHp} HP</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                  {player.name} ({lang === 'pl' ? 'Ty' : 'You'})
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 'bold' }}>{player.hp} / {player.maxHp} HP</span>
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Heart size={14} color="#ef4444" fill="#ef4444" />
-                <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(239,68,68,0.2)' }}>
-                    <div style={{ width: `${getPercentage(player.hp, player.maxHp)}%`, height: '100%', background: 'linear-gradient(90deg, #ef4444, #f87171)', transition: '0.15s ease-out' }} />
+                <Heart size={14} color="var(--danger)" fill="currentColor" />
+                <div style={{ width: '100%', height: '10px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${getPercentage(player.hp, player.maxHp)}%`, height: '100%', background: 'var(--danger)', transition: '0.15s ease-out' }} />
                 </div>
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={14} color="#fbbf24" fill="#fbbf24" />
-                <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(251,191,36,0.2)' }}>
-                    <div style={{ width: `${getPercentage(player.energy, player.maxEnergy)}%`, height: '100%', background: 'linear-gradient(90deg, #fbbf24, #fcd34d)', transition: '0.15s ease-out' }} />
+                <Zap size={14} color="var(--accent)" fill="currentColor" />
+                <div style={{ width: '100%', height: '6px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${getPercentage(player.energy, player.maxEnergy)}%`, height: '100%', background: 'var(--accent)', transition: '0.15s ease-out' }} />
                 </div>
               </div>
             </div>
@@ -844,21 +899,23 @@ export const Arena = () => {
             {/* ENEMY HEALTH & ENERGY */}
             <div style={{ textAlign: 'left' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>{enemy.name} (Przeciwnik)</span>
-                <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: 'bold' }}>{enemy.hp} / {enemy.maxHp} HP</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                  {enemy.name} ({lang === 'pl' ? 'Przeciwnik' : 'Opponent'})
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 'bold' }}>{enemy.hp} / {enemy.maxHp} HP</span>
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Heart size={14} color="#ef4444" fill="#ef4444" />
-                <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(239,68,68,0.2)' }}>
-                    <div style={{ width: `${getPercentage(enemy.hp, enemy.maxHp)}%`, height: '100%', background: 'linear-gradient(90deg, #ef4444, #f87171)', transition: '0.15s ease-out' }} />
+                <Heart size={14} color="var(--danger)" fill="currentColor" />
+                <div style={{ width: '100%', height: '10px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${getPercentage(enemy.hp, enemy.maxHp)}%`, height: '100%', background: 'var(--danger)', transition: '0.15s ease-out' }} />
                 </div>
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={14} color="#fbbf24" fill="#fbbf24" />
-                <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(251,191,36,0.2)' }}>
-                    <div style={{ width: `${getPercentage(enemy.energy, enemy.maxEnergy)}%`, height: '100%', background: 'linear-gradient(90deg, #fbbf24, #fcd34d)', transition: '0.15s ease-out' }} />
+                <Zap size={14} color="var(--accent)" fill="currentColor" />
+                <div style={{ width: '100%', height: '6px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${getPercentage(enemy.energy, enemy.maxEnergy)}%`, height: '100%', background: 'var(--accent)', transition: '0.15s ease-out' }} />
                 </div>
               </div>
             </div>
@@ -872,12 +929,14 @@ export const Arena = () => {
               onClick={() => setShowLog(!showLog)}
               style={{ padding: '8px 16px', fontSize: '13px', borderRadius: showLog ? '12px 12px 0 0' : '12px', borderBottom: showLog ? 'none' : '', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             >
-              <Eye size={14} /> {showLog ? 'Schowaj Transmisję Starcia' : 'Pokaż Transmisję Starcia'}
+              <Eye size={14} /> {showLog 
+                ? (lang === 'pl' ? 'Schowaj Transmisję Starcia' : 'Hide Combat Feed') 
+                : (lang === 'pl' ? 'Pokaż Transmisję Starcia' : 'Show Combat Feed')}
             </button>
             {showLog && (
                <div 
                  ref={scrollRef}
-                 className="glass-panel" 
+                 className="card" 
                  style={{ 
                    padding: '12px', 
                    overflowY: 'auto', 
@@ -887,25 +946,25 @@ export const Arena = () => {
                    height: '110px', 
                    borderRadius: '0 0 12px 12px', 
                    borderTop: 'none',
-                   background: 'rgba(0,0,0,0.4)',
+                   background: 'var(--surface-2)',
                    textAlign: 'left'
                  }}
                >
                  {combatLog.map((log, i) => {
-                   let isPlayerAct = false;
-                   if (player && log.includes(player.name)) isPlayerAct = true;
-                   
-                   return (
-                     <div key={i} style={{ 
-                        fontSize: '11px', lineHeight: '1.4', padding: '6px',
-                        color: log.includes('🏆') ? '#4ade80' : log.includes('🔥') ? '#fbbf24' : log.includes('💨') ? '#38bdf8' : 'var(--text-secondary)',
-                        background: 'rgba(255,255,255,0.01)', 
-                        borderLeft: isPlayerAct ? '2px solid var(--accent-base)' : '2px solid #ef4444',
-                        borderRadius: '4px'
-                     }}>
-                       {log}
-                     </div>
-                   );
+                    let isPlayerAct = false;
+                    if (player && log.includes(player.name)) isPlayerAct = true;
+                    
+                    return (
+                      <div key={i} style={{ 
+                         fontSize: '11px', lineHeight: '1.4', padding: '6px',
+                         color: log.includes('🏆') ? 'var(--accent)' : 'var(--text-secondary)',
+                         background: 'transparent', 
+                         borderLeft: isPlayerAct ? '2px solid var(--accent-base)' : '2px solid var(--border-strong)',
+                         borderRadius: '4px'
+                      }}>
+                        {log}
+                      </div>
+                    );
                  })}
                </div>
             )}
@@ -913,34 +972,42 @@ export const Arena = () => {
 
           {/* GAMEOVER DIALOG MODAL / REWARDS */}
           {isGameOver && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', marginTop: '10px', border: lastRewards.won ? '2px solid #fbbf24' : '2px solid #ef4444', background: 'rgba(28,25,23,0.95)' }}>
-                <div style={{ margin: '0 auto 12px', width: '50px', height: '50px', borderRadius: '50%', background: lastRewards.won ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {lastRewards.won ? <Trophy size={28} color="#fbbf24" /> : <Flame size={28} color="#ef4444" />}
+            <div className="card animate-fade-in" style={{ padding: '24px', textAlign: 'center', marginTop: '10px', border: lastRewards.won ? '1px solid var(--accent-border)' : '1px solid rgba(239,68,68,0.35)', background: 'var(--surface)' }}>
+                <div style={{ margin: '0 auto 12px', width: '48px', height: '48px', borderRadius: '50%', background: lastRewards.won ? 'var(--accent-soft)' : 'var(--danger-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {lastRewards.won ? <Trophy size={28} color="var(--accent)" /> : <Flame size={28} color="var(--danger)" />}
                 </div>
                 
-                <h2 style={{ fontSize: '24px', marginBottom: '8px', color: lastRewards.won ? '#fbbf24' : '#ef4444', fontWeight: 800 }}>
-                   {lastRewards.won ? 'WSPANIAŁE ZWYCIĘSTWO!' : 'ZAPISANY NA TARCE'}
+                <h2 style={{ fontSize: '24px', marginBottom: '8px', color: lastRewards.won ? 'var(--accent)' : 'var(--danger)', fontWeight: 800 }}>
+                   {lastRewards.won ? t('arena.victory') : (lang === 'pl' ? 'ZAPISANY NA TARCE' : 'DEFEATED IN BATTLE')}
                 </h2>
                 {lastRewards.won ? (
                    <>
-                       <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px' }}>Twoja postać odnosi spektakularny triumf. Złoto i sława są Twoje!</p>
+                       <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px' }}>
+                         {lang === 'pl' 
+                           ? 'Twoja postać odnosi spektakularny triumf. Złoto i sława są Twoje!'
+                           : 'Your avatar achieves a spectacular victory. Gold and glory are yours!'}
+                       </p>
                        <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', marginBottom: '24px' }}>
                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fbbf24' }}>+{lastRewards.gold}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>ZŁOTO</div>
+                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--accent)' }}>+{lastRewards.gold}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{t('arena.goldReward').toUpperCase()}</div>
                            </div>
                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#a855f7' }}>+{lastRewards.prestige}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>PRESTIŻ</div>
+                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)' }}>+{lastRewards.prestige}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{t('arena.prestigeReward').toUpperCase()}</div>
                            </div>
                        </div>
                    </>
                 ) : (
-                   <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '13px' }}>Przeciwnik obnażył słabości w Twojej gardzie. Poćwicz i spróbuj ponownie!</p>
+                   <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '13px' }}>
+                     {lang === 'pl' 
+                       ? 'Przeciwnik obnażył słabości w Twojej gardzie. Poćwicz i spróbuj ponownie!'
+                       : 'The opponent exposed weakness in your guard. Train more and try again!'}
+                   </p>
                 )}
                 
                 <button className="btn btn-primary" onClick={() => setPlayer(null)} style={{ width: '100%', padding: '16px', fontSize: '16px', fontWeight: 'bold' }}>
-                  WRÓĆ DO KATEDRY WALK
+                  {lang === 'pl' ? 'WRÓĆ DO KATEDRY WALK' : 'RETURN TO BATTLE LOBBY'}
                 </button>
             </div>
           )}

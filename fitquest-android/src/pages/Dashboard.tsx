@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore, EXP_TO_NEXT_LEVEL, generateRandomItem, getPrestigeRank } from '../store/useAuthStore';
 import { Navigation } from '../components/Navigation';
-import { LogOut, Flame, Award, Edit2, Check, Shield, Sword, Crown, Zap, Ghost, Star, Skull, Package, Crosshair, Coins, ShoppingBag, X, AlertTriangle, Gift, ChevronRight } from 'lucide-react';
+import { WorkoutHeatmap } from '../components/WorkoutHeatmap';
+import { Onboarding } from '../components/Onboarding';
+import { LogOut, Flame, Award, Edit2, Check, Shield, Sword, Crown, Zap, Ghost, Star, Skull, Package, Crosshair, Coins, ShoppingBag, X, AlertTriangle, Gift, ChevronRight, Settings, TrendingUp, Target, CalendarDays } from 'lucide-react';
+import { useTranslation, translateItemName } from '../lib/translations';
 
 // ——— Avatars ———
 const AVATARS = [
@@ -17,50 +21,12 @@ const AVATARS = [
 // ——— Avatar border colours ———
 const AVATAR_COLORS = [
   { id: 'magma',    value: '#f97316', label: 'Magma' },
-  { id: 'crimson',  value: '#ef4444', label: 'Szkarłat' },
-  { id: 'gold',     value: '#fbbf24', label: 'Złoto' },
-  { id: 'purple',   value: '#a855f7', label: 'Fiolet' },
-  { id: 'sky',      value: '#38bdf8', label: 'Błękit' },
-  { id: 'lime',     value: '#a3e635', label: 'Limonka' },
-  { id: 'rose',     value: '#fb7185', label: 'Różowy' },
-  { id: 'white',    value: '#e2e8f0', label: 'Biel' },
+  { id: 'silver',   value: '#a3a8b0', label: 'Srebro' },
+  { id: 'white',    value: '#eceef1', label: 'Biel' },
+  { id: 'graphite', value: '#565b63', label: 'Grafit' },
 ];
 
-const MUSCLE_DESCRIPTIONS: Record<string, string> = {
-  Core: 'Zdrowie (Max HP)',
-  Arms: 'Obrażenia (Atak bazowy)',
-  Chest: 'Pancerz (Redukcja ciosów)',
-  Legs: 'Zwinność (Szansa na Unik)',
-  Back: 'Energia (Zapas energii)',
-  Shoulders: 'Precyzja (Szansa na Krytyk)',
-};
-
-const SLOT_LABELS: Record<string, string> = {
-  weapon: 'Broń',
-  armor: 'Pancerz',
-  accessory: 'Akcesoria',
-};
-
-// ——— Streak motivation ———
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
-const STREAK_MESSAGES: Record<number, string> = {
-  1: 'Dobry start! Wróć jutro.',
-  3: 'Trzy dni z rzędu — wchodzisz w rytm! 🔥',
-  7: 'Tydzień bez przerwy — jesteś niesamowity! 💪',
-  14: 'Dwa tygodnie konsekwencji — gladiator w toku! ⚔️',
-  30: 'Miesiąc bez odpuszczania — legenda wstaje! 🏆',
-  60: '60 dni — Twoja dyscyplina jest nieludzka! 🦾',
-  100: 'Setka z rzędu — historia zostanie zapisana! 👑',
-  365: 'Rok nieprzerwanego treningu. Nieśmiertelny. 🌟',
-};
-
-const getStreakMessage = (streak: number) => {
-  let msg = STREAK_MESSAGES[1];
-  for (const milestone of STREAK_MILESTONES) {
-    if (streak >= milestone) msg = STREAK_MESSAGES[milestone];
-  }
-  return msg;
-};
 
 const getNextMilestone = (streak: number) => {
   return STREAK_MILESTONES.find(m => m > streak) ?? null;
@@ -72,23 +38,20 @@ interface ToastMsg { id: number; text: string; color: string; icon?: string }
 // ——— Rarity helpers ———
 const getRarityColor = (rarity: string) => {
   switch (rarity) {
-    case 'Legendary': return '#eab308';
-    case 'Epic': return '#a855f7';
-    case 'Rare': return '#3b82f6';
-    default: return '#9ca3af';
-  }
-};
-const getRarityLabel = (rarity: string) => {
-  switch (rarity) {
-    case 'Legendary': return 'Legendarny';
-    case 'Epic': return 'Epicki';
-    case 'Rare': return 'Rzadki';
-    default: return 'Zwykły';
+    case 'Legendary': return '#f97316';
+    case 'Epic': return '#eceef1';
+    case 'Rare': return '#a3a8b0';
+    default: return '#71767f';
   }
 };
 
+
 export const Dashboard = () => {
+  const { t, lang } = useTranslation();
+  const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
+  const workoutLogs = useAuthStore(state => state.workoutLogs);
+  const onboarding = useAuthStore(state => state.onboarding);
   const logout = useAuthStore(state => state.logout);
   const updateProfile = useAuthStore(state => state.updateProfile);
   const checkStreak = useAuthStore(state => state.checkStreak);
@@ -103,7 +66,7 @@ export const Dashboard = () => {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   // Confirm unequip modal
-  const [unequipConfirm, setUnequipConfirm] = useState<string | null>(null);
+  const [unequipConfirm, setUnequipConfirm] = useState<'weapon' | 'armor' | 'accessory' | null>(null);
 
   // Loot / shop result modal
   const [lootModal, setLootModal] = useState<{ name: string; stat: string; value: number; rarity: string } | null>(null);
@@ -114,9 +77,51 @@ export const Dashboard = () => {
   // Modals state for logout confirmation and chest opening animation
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [openingBox, setOpeningBox] = useState<'basic' | 'gladiator' | 'mythic' | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [onboardingRequired] = useState(() => {
+    try {
+      return sessionStorage.getItem('fitquest_new_signup') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      if (sessionStorage.getItem('fitquest_new_signup') === '1') return true;
+      if (user && !onboarding) {
+        return localStorage.getItem(`fitquest_onboarding_dismissed_${user.id}`) !== '1';
+      }
+    } catch {
+      // Storage may be unavailable; onboarding remains available from the dashboard card.
+    }
+    return false;
+  });
 
-  const showToast = (text: string, color = '#34d399', icon = '✅') => {
-    // eslint-disable-next-line react-hooks/purity
+  useEffect(() => {
+    if (!unequipConfirm && !lootModal && !showLogoutConfirm && !showSettings) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (unequipConfirm) setUnequipConfirm(null);
+      if (lootModal) setLootModal(null);
+      if (showLogoutConfirm) setShowLogoutConfirm(false);
+      if (showSettings) setShowSettings(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [unequipConfirm, lootModal, showLogoutConfirm, showSettings]);
+
+  const handleOnboardingClose = () => {
+    setShowOnboarding(false);
+    try {
+      sessionStorage.removeItem('fitquest_new_signup');
+      if (user) localStorage.setItem(`fitquest_onboarding_dismissed_${user.id}`, '1');
+    } catch {
+      // Ignore storage errors.
+    }
+  };
+
+  const showToast = (text: string, color = 'var(--accent)', icon = '✅') => {
+     
     const id = Date.now();
     setToasts(prev => [...prev, { id, text, color, icon }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
@@ -137,7 +142,7 @@ export const Dashboard = () => {
     if (editWeight && editHeight) {
       updateProfile({ weight: Number(editWeight), height: Number(editHeight) });
       setIsEditing(false);
-      showToast('Profil zaktualizowany!', '#34d399', '✅');
+      showToast(t('dashboard.profileUpdated'), 'var(--accent)', '✅');
     }
   };
 
@@ -158,9 +163,9 @@ export const Dashboard = () => {
     let minRarity: 'Common' | 'Rare' | 'Epic' | 'Legendary' | undefined = undefined;
 
     if (type === 'basic') { cost = 50; }
-    // eslint-disable-next-line react-hooks/purity
+     
     else if (type === 'gladiator') { cost = 200; minRarity = Math.random() > 0.5 ? 'Epic' : 'Rare'; }
-    // eslint-disable-next-line react-hooks/purity
+     
     else if (type === 'mythic') { cost = 1000; minRarity = Math.random() > 0.3 ? 'Legendary' : 'Epic'; }
 
     if (await deductCoins(cost)) {
@@ -172,16 +177,16 @@ export const Dashboard = () => {
         setLootModal({ name: item.name, stat: item.statBoost.stat, value: item.statBoost.value, rarity: item.rarity });
       }, 1500);
     } else {
-      showToast('Niewystarczające Złoto!', '#ef4444', '💰');
+      showToast(t('dashboard.lootBoxOpenError'), 'var(--danger)', '💰');
     }
   };
 
   // ——— Unequip confirm ———
   const handleUnequipConfirmed = () => {
     if (unequipConfirm) {
-      unequipItem(unequipConfirm as any);
+      unequipItem(unequipConfirm);
       setUnequipConfirm(null);
-      showToast('Przedmiot zdjęty z gniazda.', '#9ca3af', '🛡️');
+      showToast(t('dashboard.unequipToast'), 'var(--text-secondary)', '🛡️');
     }
   };
 
@@ -192,41 +197,33 @@ export const Dashboard = () => {
     <style dangerouslySetInnerHTML={{__html: `
       @keyframes chest-shake {
         0% { transform: scale(1) rotate(0deg); }
-        12.5% { transform: scale(1.15) rotate(-12deg); }
-        25% { transform: scale(1.15) rotate(12deg); }
-        37.5% { transform: scale(1.2) rotate(-8deg); }
-        50% { transform: scale(1.2) rotate(8deg); }
-        62.5% { transform: scale(1.2) rotate(-4deg); }
-        75% { transform: scale(1.15) rotate(4deg); }
-        87.5% { transform: scale(1.1) rotate(-2deg); }
+        12.5% { transform: scale(1.12) rotate(-8deg); }
+        25% { transform: scale(1.12) rotate(8deg); }
+        37.5% { transform: scale(1.16) rotate(-5deg); }
+        50% { transform: scale(1.16) rotate(5deg); }
+        62.5% { transform: scale(1.16) rotate(-3deg); }
+        75% { transform: scale(1.12) rotate(3deg); }
+        87.5% { transform: scale(1.08) rotate(-1deg); }
         100% { transform: scale(1) rotate(0deg); }
-      }
-      @keyframes glow-pulse {
-        0% { filter: drop-shadow(0 0 15px rgba(251,191,36,0.3)); }
-        50% { filter: drop-shadow(0 0 35px rgba(251,191,36,0.8)); }
-        100% { filter: drop-shadow(0 0 15px rgba(251,191,36,0.3)); }
       }
       .animate-chest-shake {
         animation: chest-shake 1.2s infinite ease-in-out;
         display: inline-block;
       }
-      .animate-glow-pulse {
-        animation: glow-pulse 1.5s infinite ease-in-out;
-      }
     `}} />
 
     {/* ——— CHEST OPENING ANIMATION OVERLAY ——— */}
     {openingBox && (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="glass-panel" style={{ padding: '40px 24px', width: '100%', maxWidth: '340px', textAlign: 'center', border: '1px solid var(--accent-base)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="animate-chest-shake animate-glow-pulse" style={{ fontSize: '72px', marginBottom: '24px', cursor: 'default' }}>
+      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div className="card modal-card" style={{ padding: '40px 24px', width: '100%', maxWidth: '340px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="animate-chest-shake" style={{ fontSize: '64px', marginBottom: '24px', cursor: 'default' }}>
             🎁
           </div>
           <h3 style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--text-primary)', fontWeight: 'bold' }}>
-            Otwieranie Skrzyni...
+            {t('dashboard.openingBoxTitle')}
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Przełamywanie pieczęci i losowanie łupu...
+            {t('dashboard.openingBoxDesc')}
           </p>
         </div>
       </div>
@@ -234,30 +231,30 @@ export const Dashboard = () => {
 
     {/* ——— LOGOUT CONFIRM MODAL ——— */}
     {showLogoutConfirm && (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="glass-panel animate-fade-in" style={{ padding: '24px', width: '100%', maxWidth: '340px', border: '1px solid var(--accent-base)', textAlign: 'center' }}>
-          <AlertTriangle size={32} color="var(--accent-base)" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>Wylogować się?</h3>
+      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div className="card modal-card" role="dialog" aria-modal="true" aria-label={t('dashboard.logoutConfirm')} style={{ padding: '24px', width: '100%', maxWidth: '360px', textAlign: 'center' }}>
+          <AlertTriangle size={28} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
+          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t('dashboard.logoutConfirm')}</h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
-            Czy na pewno chcesz się wylogować ze swojego konta? Twoje postępy są bezpiecznie zapisane.
+            {t('dashboard.logoutConfirmDesc')}
           </p>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-secondary" onClick={() => setShowLogoutConfirm(false)} style={{ flex: 1 }}>Anuluj</button>
-            <button className="btn btn-primary" onClick={() => { setShowLogoutConfirm(false); logout(); }} style={{ flex: 1 }}>Wyloguj</button>
+            <button className="btn btn-secondary" autoFocus onClick={() => setShowLogoutConfirm(false)} style={{ flex: 1 }}>{t('common.cancel')}</button>
+            <button className="btn btn-primary" onClick={() => { setShowLogoutConfirm(false); logout(); }} style={{ flex: 1 }}>{t('dashboard.logout')}</button>
           </div>
         </div>
       </div>
     )}
     {/* ——— TOAST NOTIFICATIONS ——— */}
-    <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 200, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none' }}>
+    <div className="toast-stack" role="status" aria-live="polite">
       {toasts.map(t => (
-        <div key={t.id} className="animate-fade-in" style={{
-          background: 'rgba(28,25,23,0.97)',
+        <div key={t.id} className="toast-item" style={{
+          background: 'var(--surface)',
           border: `1px solid ${t.color}`,
-          borderRadius: '10px',
+          borderRadius: '12px',
           padding: '10px 14px',
           display: 'flex', alignItems: 'center', gap: '8px',
-          boxShadow: `0 0 16px ${t.color}33`,
+          boxShadow: 'var(--shadow-md)',
           pointerEvents: 'none',
           minWidth: '220px'
         }}>
@@ -269,16 +266,16 @@ export const Dashboard = () => {
 
     {/* ——— UNEQUIP CONFIRM MODAL ——— */}
     {unequipConfirm && (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="glass-panel animate-fade-in" style={{ padding: '24px', width: '100%', maxWidth: '340px', border: '1px solid #ef4444', textAlign: 'center' }}>
-          <AlertTriangle size={32} color="#ef4444" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>Zdjąć przedmiot?</h3>
+      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div className="card modal-card" role="dialog" aria-modal="true" aria-label={t('dashboard.unequipConfirm')} style={{ padding: '24px', width: '100%', maxWidth: '360px', border: '1px solid rgba(239, 68, 68, 0.45)', textAlign: 'center' }}>
+          <AlertTriangle size={28} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
+          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t('dashboard.unequipConfirm')}</h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
-            Gniazdo <strong>{SLOT_LABELS[unequipConfirm]}</strong> zostanie opróżnione. Przedmiot wróci do plecaka.
+            {t('dashboard.unequipConfirmDesc')}
           </p>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-secondary" onClick={() => setUnequipConfirm(null)} style={{ flex: 1 }}>Anuluj</button>
-            <button className="btn btn-primary" onClick={handleUnequipConfirmed} style={{ flex: 1, background: '#ef4444' }}>Zdejmij</button>
+            <button className="btn btn-secondary" autoFocus onClick={() => setUnequipConfirm(null)} style={{ flex: 1 }}>{t('common.cancel')}</button>
+            <button className="btn btn-primary" onClick={handleUnequipConfirmed} style={{ flex: 1, background: 'var(--danger)', borderColor: 'var(--danger)' }}>{t('dashboard.emptySlot')}</button>
           </div>
         </div>
       </div>
@@ -286,53 +283,53 @@ export const Dashboard = () => {
 
     {/* ——— LOOT RESULT MODAL ——— */}
     {lootModal && (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="glass-panel animate-fade-in" style={{ padding: '32px 24px', width: '100%', maxWidth: '340px', border: `2px solid ${getRarityColor(lootModal.rarity)}`, textAlign: 'center', position: 'relative' }}>
-          <button onClick={() => setLootModal(null)} style={{ position: 'absolute', top: '12px', right: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+      <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div className="card modal-card" role="dialog" aria-modal="true" aria-label={t('dashboard.lootReward')} style={{ padding: '32px 24px', width: '100%', maxWidth: '360px', border: `1px solid ${getRarityColor(lootModal.rarity)}`, textAlign: 'center', position: 'relative' }}>
+          <button autoFocus aria-label={t('common.close')} onClick={() => setLootModal(null)} style={{ position: 'absolute', top: '12px', right: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <X size={18} />
           </button>
 
           {/* Animated gift icon */}
-          <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: `${getRarityColor(lootModal.rarity)}22`, border: `2px solid ${getRarityColor(lootModal.rarity)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: `0 0 30px ${getRarityColor(lootModal.rarity)}55`, animation: 'pulse 1s infinite' }}>
-            <Gift size={36} color={getRarityColor(lootModal.rarity)} />
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `${getRarityColor(lootModal.rarity)}18`, border: `1px solid ${getRarityColor(lootModal.rarity)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Gift size={30} color={getRarityColor(lootModal.rarity)} />
           </div>
 
           <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: getRarityColor(lootModal.rarity), textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-            {getRarityLabel(lootModal.rarity)}
+            {t(`dashboard.rarity.${lootModal.rarity}`)}
           </span>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '6px', color: 'var(--text-primary)' }}>{lootModal.name}</h2>
+          <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '6px', color: 'var(--text-primary)' }}>{translateItemName(lootModal.name, lang)}</h2>
           <p style={{ fontSize: '16px', color: getRarityColor(lootModal.rarity), fontWeight: 700, marginBottom: '24px' }}>
-            +{lootModal.value} {lootModal.stat}
+            +{lootModal.value} {t('dashboard.itemStats.' + lootModal.stat)}
           </p>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-            Przedmiot trafił do Twojego plecaka. Możesz go założyć poniżej.
+            {t('dashboard.lootFoundDesc')}
           </p>
           <button className="btn btn-primary" onClick={() => setLootModal(null)} style={{ width: '100%' }}>
-            Odbieram Łup! 🎉
+            {t('dashboard.lootReward')}
           </button>
         </div>
       </div>
     )}
 
-    <div className="animate-fade-in container" style={{ paddingBottom: '100px', paddingTop: '24px', minHeight: '100vh' }}>
+    <div className="container app-page page-dashboard page-transition">
 
       {/* ——— HEADER ——— */}
-      <header style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <header className="dashboard-full" style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div
             onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-            style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `3px solid ${currentAvatarColor}`, flexShrink: 0, cursor: 'pointer', boxShadow: `0 0 18px ${currentAvatarColor}44`, transition: '0.2s' }}
+            style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${currentAvatarColor}`, flexShrink: 0, cursor: 'pointer', transition: '0.2s' }}
           >
             <CurrentIconNode size={32} color="var(--accent-base)" />
           </div>
           <div>
-            <h1 className="text-gradient" style={{ fontSize: '26px', margin: 0, marginBottom: '4px' }}>
-              {user.level >= 1000 ? 'Poziom MAX' : `Poziom ${user.level}`}
+            <h1 className="text-gradient" style={{ fontSize: '23px', margin: 0, marginBottom: '4px' }}>
+              {user.level >= 1000 ? t('dashboard.levelMax') : `${t('dashboard.level')} ${user.level}`}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <p style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: 600, margin: 0 }}>{user.username}</p>
               <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: prestige.color + '20', color: prestige.color, fontWeight: 'bold' }}>
-                {prestige.name}
+                {t('dashboard.prestigeRanks.' + prestige.name, prestige.name)}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -349,14 +346,17 @@ export const Dashboard = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Coins size={16} color="#fbbf24" />
+              <Coins size={16} color="var(--accent)" />
               <span style={{ fontWeight: 'bold', fontSize: '13px' }}>{user.coins || 0}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Award size={16} color="#a855f7" />
+              <Award size={16} color="var(--text-secondary)" />
               <span style={{ fontWeight: 'bold', fontSize: '13px' }}>{user.prestige || 0}</span>
             </div>
-            <button onClick={() => setShowLogoutConfirm(true)} style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title="Wyloguj się">
+            <button onClick={() => setShowSettings(!showSettings)} style={{ background: showSettings ? 'var(--accent-soft)' : 'transparent', border: showSettings ? '1px solid var(--accent-border)' : '1px solid var(--border-color)', borderRadius: '8px', color: showSettings ? 'var(--accent-base)' : 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.settingsTitle')}>
+              <Settings size={16} />
+            </button>
+            <button onClick={() => setShowLogoutConfirm(true)} style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.logout')}>
               <LogOut size={16} />
             </button>
           </div>
@@ -364,8 +364,8 @@ export const Dashboard = () => {
       </header>
 
       {showAvatarPicker && (
-        <section className="animate-fade-in glass-panel" style={{ padding: '16px', marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '15px', marginBottom: '12px', color: 'var(--text-secondary)' }}>Ikona bohatera</h3>
+        <section className="animate-fade-in card dashboard-full" style={{ padding: '16px', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '15px', marginBottom: '12px', color: 'var(--text-secondary)' }}>{t('dashboard.heroIcon')}</h3>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
             {AVATARS.map(avatar => {
               const Icon = avatar.icon;
@@ -373,31 +373,31 @@ export const Dashboard = () => {
               return (
                 <button
                   key={avatar.id}
-                  onClick={() => { updateProfile({ heroIcon: avatar.id }); showToast('Ikona zmieniona!', currentAvatarColor, '🎭'); }}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', background: isSelected ? currentAvatarColor : 'var(--surface-hover)', border: isSelected ? `2px solid white` : `2px solid transparent`, borderRadius: '10px', cursor: 'pointer', transition: '0.2s all' }}
+                  onClick={() => { updateProfile({ heroIcon: avatar.id }); showToast(t('dashboard.avatarChanged'), 'var(--accent)', '🎭'); }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', background: isSelected ? 'var(--accent-soft)' : 'var(--surface-hover)', border: isSelected ? '1px solid var(--accent-border)' : '1px solid transparent', borderRadius: '10px', cursor: 'pointer', transition: '0.2s all' }}
                 >
-                  <Icon size={24} color={isSelected ? 'white' : 'var(--text-muted)'} />
+                  <Icon size={24} color={isSelected ? 'var(--accent)' : 'var(--text-muted)'} />
                 </button>
               );
             })}
           </div>
 
-          <h3 style={{ fontSize: '15px', marginBottom: '10px', color: 'var(--text-secondary)' }}>Kolor obwódki</h3>
+          <h3 style={{ fontSize: '15px', marginBottom: '10px', color: 'var(--text-secondary)' }}>{t('dashboard.borderColor')}</h3>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
             {AVATAR_COLORS.map(col => {
               const isSelected = (user.heroColor || 'magma') === col.id;
               return (
                 <button
                   key={col.id}
-                  title={col.label}
-                  onClick={() => { updateProfile({ heroColor: col.id } as any); showToast(`Kolor: ${col.label}`, col.value, '🎨'); }}
+                  title={t('dashboard.colorNames.' + col.id, col.label)}
+                  onClick={() => { updateProfile({ heroColor: col.id }); showToast(t('dashboard.colorChanged'), 'var(--accent)', '🎨'); }}
                   style={{
                     width: '36px', height: '36px', borderRadius: '50%',
                     background: col.value,
-                    border: isSelected ? '3px solid white' : '3px solid transparent',
-                    boxShadow: isSelected ? `0 0 12px ${col.value}` : 'none',
+                    border: isSelected ? '2px solid var(--text)' : '2px solid transparent',
+                    boxShadow: 'none',
                     cursor: 'pointer',
-                    transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                    transform: isSelected ? 'scale(1.1)' : 'scale(1)',
                     transition: '0.15s all'
                   }}
                 />
@@ -408,57 +408,99 @@ export const Dashboard = () => {
             onClick={() => setShowAvatarPicker(false)}
             style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 0' }}
           >
-            ✕ Zamknij
+            {t('dashboard.closeBtn')}
           </button>
         </section>
       )}
 
-      {/* ——— STREAK SECTION ——— */}
-      <section className="glass-panel" style={{ padding: '20px', marginBottom: '20px', border: streak >= 7 ? '1px solid rgba(249,115,22,0.5)' : '1px solid var(--border-color)' }}>
+      {!onboarding && (
+        <section className="card dashboard-full animate-fade-in" style={{ padding: '18px', marginBottom: '20px', border: '1px solid var(--accent-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '11px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Target size={21} color="var(--accent)" />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 650 }}>{t('onboarding.newUserTitle')}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>{t('onboarding.newUserDesc')}</div>
+              </div>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={() => setShowOnboarding(true)} style={{ padding: '9px 16px' }}>
+              <TrendingUp size={15} /> {t('onboarding.title')}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* ——— STREAK SECTION ——— */}      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px', border: streak >= 7 ? '1px solid var(--accent-border)' : '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Flame size={20} color="#f97316" />
-            <h3 style={{ fontSize: '16px', margin: 0 }}>Seria Treningowa</h3>
+            <Flame size={20} color="var(--accent)" />
+            <h3 style={{ fontSize: '16px', margin: 0 }}>{t('dashboard.streakTitle')}</h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '28px', fontWeight: 800, color: '#f97316', lineHeight: 1 }}>{streak}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.3 }}>dni<br/>z rzędu</span>
+            <span style={{ fontSize: '28px', fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{streak}</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.3 }}>{t('dashboard.streakDaysLabel')}</span>
           </div>
         </div>
 
         <p style={{ fontSize: '13px', color: 'var(--accent-base)', fontWeight: 600, marginBottom: '10px', fontStyle: 'italic' }}>
-          {getStreakMessage(streak)}
+          {(() => {
+            let key = 1;
+            for (const milestone of STREAK_MILESTONES) {
+              if (streak >= milestone) key = milestone;
+            }
+            return t(`dashboard.streakMsg.${key}`);
+          })()}
         </p>
 
         {nextMilestone && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-              <span>Postęp do celu: {nextMilestone} dni</span>
+              <span>{t('dashboard.streakGoal')} {nextMilestone} {t('dashboard.streakDays')}</span>
               <span>{streak}/{nextMilestone}</span>
             </div>
             <div style={{ width: '100%', height: '6px', background: 'var(--surface-hover)', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${streakProgressPct}%`, height: '100%', background: 'linear-gradient(90deg, #f97316, #fbbf24)', transition: '0.4s ease-out', borderRadius: '4px' }} />
+              <div style={{ width: `${streakProgressPct}%`, height: '100%', background: 'var(--accent-base)', transition: '0.4s ease-out', borderRadius: '4px' }} />
             </div>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              Jeszcze <strong style={{ color: 'var(--text-secondary)' }}>{nextMilestone - streak}</strong> dni do kolejnego kamienia milowego
+              {t('dashboard.streakGoalRemaining').replace('{days}', (nextMilestone - streak).toString())}
             </p>
           </>
         )}
-        {!nextMilestone && <p style={{ fontSize: '12px', color: '#fbbf24', marginTop: '4px' }}>🏆 Osiągnąłeś wszystkie kamienie milowe! Legenda!</p>}
+        {!nextMilestone && <p style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>{t('dashboard.streakGoalAllDone')}</p>}
+      </section>
+
+      {/* ——— WORKOUT HEATMAP ——— */}
+      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CalendarDays size={19} color="var(--accent)" />
+            <h3 style={{ fontSize: '16px', margin: 0 }}>{t('progress.heatmapTitle')}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/progress')}
+            style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: 0 }}
+          >
+            {t('progress.openProgress')} <ChevronRight size={14} />
+          </button>
+        </div>
+        <WorkoutHeatmap history={workoutLogs} compact />
       </section>
 
       {/* ——— VITAL STATS ——— */}
-      <section className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '17px', margin: 0 }}>Dane Fizyczne</h3>
+          <h3 style={{ fontSize: '17px', margin: 0 }}>{t('dashboard.physicalData')}</h3>
           <button onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-base)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', fontWeight: 600 }}>
-            {isEditing ? <><Check size={16} /> Zapisz</> : <><Edit2 size={16} /> Edytuj</>}
+            {isEditing ? <><Check size={16} /> {t('common.save')}</> : <><Edit2 size={16} /> {t('dashboard.editBtn')}</>}
           </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
           <div>
-            <span className="label">Waga (kg)</span>
+            <span className="label">{t('dashboard.weight')}</span>
             {isEditing ? (
               <input type="number" className="input-field" value={editWeight} onChange={e => setEditWeight(e.target.value)} style={{ padding: '8px' }} />
             ) : (
@@ -466,7 +508,7 @@ export const Dashboard = () => {
             )}
           </div>
           <div>
-            <span className="label">Wzrost (cm)</span>
+            <span className="label">{t('dashboard.height')}</span>
             {isEditing ? (
               <input type="number" className="input-field" value={editHeight} onChange={e => setEditHeight(e.target.value)} style={{ padding: '8px' }} />
             ) : (
@@ -483,38 +525,120 @@ export const Dashboard = () => {
           const bmiRounded = Math.round(bmi * 10) / 10;
           const ppm = Math.round(10 * w + 6.25 * h - 5 * 25 + 5); // Mifflin-St Jeor (wiek 25)
           const tdee = Math.round(ppm * 1.55); // umiarkowana aktywność
-          const bmiColor = bmi < 18.5 ? '#38bdf8' : bmi < 25 ? '#34d399' : bmi < 30 ? '#fbbf24' : '#ef4444';
-          const bmiLabel = bmi < 18.5 ? 'Niedowaga' : bmi < 25 ? 'Norma ✓' : bmi < 30 ? 'Nadwaga' : 'Otyłość';
+          const bmiLabel = bmi < 18.5 ? t('dashboard.underweight') : bmi < 25 ? t('dashboard.normal') : bmi < 30 ? t('dashboard.overweight') : t('dashboard.obese');
           return (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '4px' }}>
-              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px 8px', border: `1px solid ${bmiColor}44`, textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: bmiColor }}>{bmiRounded}</div>
-                <div style={{ fontSize: '9px', color: bmiColor, fontWeight: 600, marginBottom: '1px' }}>BMI</div>
+              <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{bmiRounded}</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '1px' }}>{t('dashboard.bmiLabel', 'BMI')}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{bmiLabel}</div>
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent-base)' }}>{ppm}</div>
+              <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{ppm}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '1px' }}>PPM (kcal)</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>spoczynek</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{t('dashboard.bmrRest')}</div>
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#fbbf24' }}>{tdee}</div>
+              <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{tdee}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '1px' }}>TDEE (kcal)</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>aktywny</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{t('dashboard.tdeeActive')}</div>
               </div>
             </div>
           );
         })()}
       </section>
 
+      {/* ——— SETTINGS MODAL OVERLAY ——— */}
+      {showSettings && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowSettings(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 150,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            padding: '70px 24px 24px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="card modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('dashboard.settingsTitle')}
+            style={{
+              padding: '24px',
+              width: '100%',
+              maxWidth: '380px',
+              position: 'relative'
+            }}
+          >
+            <button
+              onClick={() => setShowSettings(false)}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <h3 style={{ fontSize: '17px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Settings size={18} color="var(--accent-base)" /> {t('dashboard.settingsTitle')}
+            </h3>
+
+            <div>
+              <span className="label" style={{ marginBottom: '8px' }}>{t('dashboard.selectLang')}</span>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {[
+                  { id: 'pl', label: 'Polski 🇵🇱' },
+                  { id: 'en', label: 'English 🇬🇧' }
+                ].map(langItem => {
+                  const isSelected = (user.language || 'pl') === langItem.id;
+                  return (
+                    <button
+                      key={langItem.id}
+                      onClick={() => {
+                        updateProfile({ language: langItem.id });
+                        showToast(langItem.id === 'pl' ? 'Zmieniono język!' : 'Language changed!', 'var(--accent-base)', '🌐');
+                      }}
+                      className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{
+                        flex: 1,
+                        padding: '8px 16px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: isSelected ? 'none' : '1px solid var(--border-color)',
+                      }}
+                    >
+                      {langItem.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ——— ACHIEVEMENTS ——— */}
       {(user.achievements || []).length > 0 && (
-        <section style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '17px', marginBottom: '12px' }}>Osiągnięcia</h3>
+        <section className="dashboard-full" style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '17px', marginBottom: '12px' }}>{t('dashboard.achievements')}</h3>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {(user.achievements || []).map((id, index) => (
-              <div key={index} className="glass-panel" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(251,191,36,0.3)' }}>
-                <Award size={18} color="#fbbf24" />
+              <div key={index} className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Award size={18} color="var(--accent)" />
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>{id}</span>
               </div>
             ))}
@@ -523,30 +647,30 @@ export const Dashboard = () => {
       )}
 
       {/* ——— EQUIPMENT ——— */}
-      <section style={{ marginBottom: '20px' }}>
-        <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>Ekwipunek Bojowy</h3>
+      <section className="dashboard-full" style={{ marginBottom: '20px' }}>
+        <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>{t('dashboard.combatEquip')}</h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '14px' }}>
           {(['weapon', 'armor', 'accessory'] as const).map(slot => {
             const item = equipped[slot];
             return (
-              <div key={slot} className="glass-panel" style={{ padding: '12px', textAlign: 'center', border: item ? `1px solid ${getRarityColor(item.rarity)}` : '1px dashed var(--border-color)', position: 'relative' }}>
-                <p style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>{SLOT_LABELS[slot]}</p>
+              <div key={slot} className="card" style={{ padding: '12px', textAlign: 'center', border: item ? `1px solid ${getRarityColor(item.rarity)}` : '1px dashed var(--border-color)', position: 'relative' }}>
+                <p style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>{t('dashboard.slots.' + slot)}</p>
                 {item ? (
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '11px', color: getRarityColor(item.rarity), marginBottom: '3px' }}>{item.name}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--accent-base)', marginBottom: '8px' }}>+{item.statBoost.value} {item.statBoost.stat}</div>
+                    <div style={{ fontWeight: 700, fontSize: '11px', color: getRarityColor(item.rarity), marginBottom: '3px' }}>{translateItemName(item.name, lang)}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--accent-base)', marginBottom: '8px' }}>+{item.statBoost.value} {t('dashboard.itemStats.' + item.statBoost.stat)}</div>
                     <button
                       onClick={() => setUnequipConfirm(slot)}
-                      style={{ fontSize: '9px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', width: '100%' }}
+                      style={{ fontSize: '9px', padding: '3px 8px', borderRadius: '6px', background: 'var(--danger-soft)', border: '1px solid rgba(239,68,68,0.28)', color: 'var(--danger)', cursor: 'pointer', width: '100%' }}
                     >
-                      Zdejmij
+                      {t('dashboard.unequip')}
                     </button>
                   </div>
                 ) : (
                   <div style={{ padding: '8px 0', opacity: 0.3 }}>
                     <Package size={22} style={{ margin: '0 auto' }} />
-                    <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>Puste</p>
+                    <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>{t('dashboard.emptySlot')}</p>
                   </div>
                 )}
               </div>
@@ -556,22 +680,22 @@ export const Dashboard = () => {
 
         {/* ——— BACKPACK ——— */}
         {inventory.length > 0 && (
-          <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px' }}>
-            <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-secondary)' }}>🎒 Plecak ({inventory.length} przedmiotów)</h4>
+          <div className="card" style={{ padding: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-secondary)' }}>{t('dashboard.backpack')} ({inventory.length} {t('dashboard.itemsCount')})</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {inventory.map(item => (
                 <div
                   key={item.id}
-                  onClick={() => { equipItem(item.id, item.type); showToast(`${item.name} założony!`, getRarityColor(item.rarity), '⚔️'); }}
+                  onClick={() => { equipItem(item.id, item.type); showToast(t('dashboard.itemEquippedToast').replace('{name}', translateItemName(item.name, lang)), getRarityColor(item.rarity), '⚔️'); }}
                   style={{ padding: '10px', background: 'var(--surface-hover)', borderRadius: '10px', border: `1px solid ${getRarityColor(item.rarity)}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px', transition: '0.2s' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '9px', fontWeight: 700, color: getRarityColor(item.rarity), textTransform: 'uppercase' }}>{getRarityLabel(item.rarity)}</span>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: getRarityColor(item.rarity), textTransform: 'uppercase' }}>{t('dashboard.rarity.' + item.rarity)}</span>
                     <ChevronRight size={12} color="var(--text-muted)" />
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--text-primary)' }}>{item.name}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--accent-base)' }}>+{item.statBoost.value} {item.statBoost.stat}</div>
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '2px' }}>Kliknij aby założyć</div>
+                  <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--text-primary)' }}>{translateItemName(item.name, lang)}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--accent-base)' }}>+{item.statBoost.value} {t('dashboard.itemStats.' + item.statBoost.stat)}</div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '2px' }}>{t('dashboard.lootClickToEquip')}</div>
                 </div>
               ))}
             </div>
@@ -579,54 +703,50 @@ export const Dashboard = () => {
         )}
 
         {/* ——— SHOP ——— */}
-        <div className="glass-panel" style={{ padding: '18px', border: '1px solid rgba(251,191,36,0.35)' }}>
+        <div className="card" style={{ padding: '18px' }}>
           <h4 style={{ fontSize: '15px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ShoppingBag size={16} color="#fbbf24" /> Czarny Rynek
+            <ShoppingBag size={16} color="var(--accent)" /> {t('dashboard.shop')}
           </h4>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
-            Wydaj złoto zarobione na Arenie na potężny, losowy ekwipunek.
+            {t('dashboard.shopDesc')}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <button className="btn btn-secondary" onClick={() => handleBuyBox('basic')} style={{ justifyContent: 'space-between', padding: '12px 16px' }}>
-              <span>📦 Skrzynia Biedaka</span>
-              <span style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Coins size={13} /> 50</span>
+              <span>{t('dashboard.chestBiedak')}</span>
+              <span style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Coins size={13} /> 50</span>
             </button>
-            <button className="btn btn-secondary" onClick={() => handleBuyBox('gladiator')} style={{ justifyContent: 'space-between', padding: '12px 16px', borderColor: '#a855f7' }}>
-              <span style={{ color: '#a855f7' }}>💜 Pudło Gladiatora</span>
-              <span style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Coins size={13} /> 200</span>
+            <button className="btn btn-secondary" onClick={() => handleBuyBox('gladiator')} style={{ justifyContent: 'space-between', padding: '12px 16px' }}>
+              <span>{t('dashboard.chestGladiator')}</span>
+              <span style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Coins size={13} /> 200</span>
             </button>
-            <button className="btn btn-secondary" onClick={() => handleBuyBox('mythic')} style={{ justifyContent: 'space-between', padding: '12px 16px', borderColor: '#eab308' }}>
-              <span style={{ color: '#eab308', fontWeight: 'bold' }}>⭐ Mityczny Relikwiarz</span>
-              <span style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Coins size={13} /> 1000</span>
+            <button className="btn btn-secondary" onClick={() => handleBuyBox('mythic')} style={{ justifyContent: 'space-between', padding: '12px 16px' }}>
+              <span>{t('dashboard.chestMythic')}</span>
+              <span style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Coins size={13} /> 1000</span>
             </button>
           </div>
         </div>
       </section>
 
       {/* ——— MUSCLE STATS ——— */}
-      <section>
-        <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>Statystyki Mięśni</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      <section className="dashboard-full">
+        <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>{t('dashboard.muscleStats')}</h3>
+        <div className="muscle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {['Chest', 'Back', 'Legs', 'Arms', 'Core', 'Shoulders'].map((muscle) => {
             const stat = user.muscleStats[muscle];
             const mNextExp = stat.level >= 1000 ? 1 : EXP_TO_NEXT_LEVEL(stat.level);
             const mPercent = stat.level >= 1000 ? 100 : Math.min(100, Math.round((stat.exp / mNextExp) * 100));
 
-            const MUSCLE_PL: Record<string, string> = {
-              Chest: 'Klatka', Back: 'Plecy', Legs: 'Nogi', Arms: 'Ramiona', Core: 'Brzuch', Shoulders: 'Barki'
-            };
-
             return (
-              <div key={muscle} className="glass-panel" style={{ padding: '14px' }}>
+              <div key={muscle} className="card" style={{ padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{MUSCLE_PL[muscle]}</p>
+                  <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{t('dashboard.' + muscle.toLowerCase())}</p>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-base)' }}>
-                    {stat.level >= 1000 ? 'MAX' : `Poz. ${stat.level} (${mPercent}%)`}
+                    {stat.level >= 1000 ? 'MAX' : `${t('dashboard.level')} ${stat.level} (${mPercent}%)`}
                   </span>
                 </div>
                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Crosshair size={10} /> {MUSCLE_DESCRIPTIONS[muscle]}
+                  <Crosshair size={10} /> {t('dashboard.muscleDesc.' + muscle)}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
                   <div style={{ flex: 1, height: '6px', background: 'var(--surface-hover)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -644,6 +764,9 @@ export const Dashboard = () => {
 
     </div>
     <Navigation />
+    {showOnboarding && (
+      <Onboarding required={onboardingRequired} onClose={handleOnboardingClose} />
+    )}
     </>
   );
 };

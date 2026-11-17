@@ -15,17 +15,40 @@ Projekt składa się z dwóch powiązanych części:
 - **⚔️ Arena Gladiatorów (Matchmaking & Walka)**:
   - Ekran skanowania z dynamicznym radarem wyszukującym pretendentów.
   - Wybór spośród **6 przeciwników** podzielonych na kategorie trudności: **Słaby** (0.5x nagrody), **Równy** (1.0x nagrody), **Silny** (1.6x nagrody).
-  - Wizualne starcia z animacjami doskoku (lunge), uników (dodge), efektów cięć oraz krytycznych błysków ekranu.
+  - Wizualne starcia z animacjami doskoku (lunge), uników (dodge) i efektów cięć.
 - **🎁 Czarny Rynek (Sklep ze Skrzynkami)**:
   - Zakup losowego ekwipunku o zróżnicowanej rzadkości (Common, Rare, Epic, Legendary).
   - W pełni animowany proces otwierania skrzyń – 1.5-sekundowa sekwencja drżenia i pulsowania prezentu 🎁 przed ukazaniem wylosowanego przedmiotu.
 - **🍎 Tracker Kalorii i Makroskładników**:
   - Automatyczne wyliczanie zapotrzebowania na Białko (2g/kg), Tłuszcze (1g/kg) i Węglowodany.
+  - Cele kalorii i makro pobierane z onboardingu (o ile został ukończony).
   - Wyszukiwarka produktów oraz kreator dodawania własnych posiłków.
-- **🏋️ Dziennik Treningowy**:
-  - Wybór gotowych planów (FBW, PPL) z podglądem ćwiczeń.
-  - Baza ponad 23 ćwiczeń z animowanymi opisami technicznymi i prostym dodawaniem serii.
+- **🏋️ Aktywna Sesja Treningowa**:
+  - Wybór gotowych planów (FBW, PPL, Trening w Domu, Trening z Hantlami) lub pustej sesji z bazy ponad 23 ćwiczeń.
+  - Licznik czasu sesji oraz konfigurowalny timer przerw (60/90/120/180 s) z paskiem „+30 s” i pominięciem.
+  - Podpowiedzi poprzednich wyników i automatyczna progresja ciężaru/powtórzeń na podstawie ostatniego treningu.
+  - Serie z ciężarem, powtórzeniami i RPE, notatki do ćwiczeń oraz notatka i RPE całej sesji.
+  - Sesja jest zapisywana lokalnie i wznawiana po odświeżeniu strony (do 24 godzin).
+- **📚 Historia Treningów i Wykresy** (`/progress`):
+  - Pełna historia sesji z rozwijanymi szczegółami i możliwością usunięcia wpisu.
+  - Wykresy objętości tygodniowej, częstotliwości treningów, balansu mięśni i trendu masy ciała.
+  - Rekordy osobiste (PR) z szacowanym 1RM, seria tygodni z rzędu i statystyki łączne.
+- **🗓️ Miesięczny Heatmap Treningów**:
+  - Kalendarz w stylu GitHuba — każda kratka to jeden dzień, a intensywność pomarańczu odpowiada liczbie serii.
+  - Widok miesięczny z numerami dni, nawigacją miesięcy i wyborem dnia oraz roczny pasek 12 miesięcy.
+  - Kompaktowa wersja na pulpicie z linkiem do pełnych postępów.
+- **🎯 Onboarding po Rejestracji**:
+  - Krótki kreator: cel (masa/redukcja/utrzymanie), poziom, liczba dni treningowych i dostępny sprzęt.
+  - Automatyczny dobór planu treningowego oraz wyliczenie kalorii i makroskładników.
+  - Możliwość pominięcia i uzupełnienia konfiguracji później z pulpitu lub strony Postępów.
 - **🏆 Tablica Wyników (Leaderboard)**: Rywalizacja w rankingu prestiżu w czasie rzeczywistym.
+- **🎨 Spójny ciemny interfejs i nawigacja**:
+  - Jeden, minimalistyczny ciemny motyw: neutralne grafity, jeden pomarańczowy akcent i czerwień wyłącznie dla alertów/błędów (bez gradientów i poświat).
+  - Pełna **nawigacja desktopowa** (górny pasek z logo, linkami i podsumowaniem profilu) oraz dolna nawigacja mobilna.
+  - Responsywny układ: dwukolumnowy pulpit na szerokich ekranach, szerokości stron ograniczone dla czytelności.
+- **🌍 Lokalizacja (i18n)**:
+  - Obsługa języków: **Polski** 🇵🇱 (domyślny) oraz **Angielski** 🇬🇧 z dynamicznym tłumaczeniem interfejsu, nazw ekwipunku, ćwiczeń oraz logów z walk na arenie.
+  - Zapisywanie preferencji języka bezpośrednio w chmurze Supabase w profilu użytkownika.
 - **🔐 Bezpieczeństwo i Logowanie**:
   - Integracja z bazą **Supabase Auth & Database**.
   - Zabezpieczenie przed przypadkowym wylogowaniem (modal z pytaniem *"Czy na pewno chcesz się wylogować?"*).
@@ -66,6 +89,16 @@ VITE_SUPABASE_ANON_KEY=twoj-klucz-anon-supabase
 npm run dev
 ```
 Aplikacja będzie dostępna pod adresem: `http://localhost:5173/`.
+
+### 4. Opcjonalna migracja Supabase (zalecana)
+Aplikacja działa od razu, zapisując szczegóły sesji w istniejącej kolumnie `workouts.muscles` (z prefiksem `__fitquest:`). Aby korzystać z czystej kolumny `details jsonb` i szybszych zapytań historii, uruchom migrację:
+
+```bash
+# W Supabase SQL Editor wklej zawartość pliku:
+supabase/migrations/20261113090000_workout_details.sql
+```
+
+Migracja dodaje kolumnę `details`, indeks `workouts_user_completed_at_idx` i warunkowe polityki RLS. Nie usuwa żadnych danych.
 
 ---
 
