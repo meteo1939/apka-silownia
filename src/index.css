@@ -217,7 +217,6 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 20px;
     row-gap: 20px;
-    align-items: start;
   }
 
   .page-dashboard > * {
@@ -228,6 +227,23 @@ button {
   .page-dashboard .dashboard-full {
     grid-column: 1 / -1;
   }
+}
+
+/* ——— Dashboard ——— */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dashboard-header > :last-child {
+  margin-left: auto;
+}
+
+.dashboard-header > :first-child {
+  min-width: 0;
 }
 
 /* ——— Surfaces ——— */
@@ -1174,6 +1190,7 @@ button {
   display: block;
 }
 
+.heatmap-compact .heatmap-head,
 .heatmap-compact .heatmap-month,
 .heatmap-compact .heatmap-weekdays,
 .heatmap-compact .heatmap-legend {

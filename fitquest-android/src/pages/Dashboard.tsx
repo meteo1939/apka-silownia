@@ -28,6 +28,12 @@ const AVATAR_COLORS = [
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
+const ACHIEVEMENT_LABELS: Record<string, { pl: string; en: string }> = {
+  'First Steps': { pl: 'Pierwsze kroki', en: 'First Steps' },
+  'Heavy Lifter': { pl: 'Ciężki zawodnik', en: 'Heavy Lifter' },
+  'PR Hunter': { pl: 'Łowca rekordów', en: 'PR Hunter' },
+};
+
 const getNextMilestone = (streak: number) => {
   return STREAK_MILESTONES.find(m => m > streak) ?? null;
 };
@@ -314,7 +320,7 @@ export const Dashboard = () => {
     <div className="container app-page page-dashboard page-transition">
 
       {/* ——— HEADER ——— */}
-      <header className="dashboard-full" style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <header className="dashboard-header dashboard-full" style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div
             onClick={() => setShowAvatarPicker(!showAvatarPicker)}
@@ -471,24 +477,6 @@ export const Dashboard = () => {
         {!nextMilestone && <p style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>{t('dashboard.streakGoalAllDone')}</p>}
       </section>
 
-      {/* ——— WORKOUT HEATMAP ——— */}
-      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CalendarDays size={19} color="var(--accent)" />
-            <h3 style={{ fontSize: '16px', margin: 0 }}>{t('progress.heatmapTitle')}</h3>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate('/progress')}
-            style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: 0 }}
-          >
-            {t('progress.openProgress')} <ChevronRight size={14} />
-          </button>
-        </div>
-        <WorkoutHeatmap history={workoutLogs} compact />
-      </section>
-
       {/* ——— VITAL STATS ——— */}
       <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -527,7 +515,7 @@ export const Dashboard = () => {
           const tdee = Math.round(ppm * 1.55); // umiarkowana aktywność
           const bmiLabel = bmi < 18.5 ? t('dashboard.underweight') : bmi < 25 ? t('dashboard.normal') : bmi < 30 ? t('dashboard.overweight') : t('dashboard.obese');
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '4px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: '8px', marginTop: '4px' }}>
               <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
                 <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{bmiRounded}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '1px' }}>{t('dashboard.bmiLabel', 'BMI')}</div>
@@ -546,6 +534,24 @@ export const Dashboard = () => {
             </div>
           );
         })()}
+      </section>
+
+      {/* ——— WORKOUT HEATMAP ——— */}
+      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CalendarDays size={19} color="var(--accent)" />
+            <h3 style={{ fontSize: '16px', margin: 0 }}>{t('progress.heatmapTitle')}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/progress')}
+            style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: 0 }}
+          >
+            {t('progress.openProgress')} <ChevronRight size={14} />
+          </button>
+        </div>
+        <WorkoutHeatmap history={workoutLogs} compact />
       </section>
 
       {/* ——— SETTINGS MODAL OVERLAY ——— */}
@@ -632,25 +638,30 @@ export const Dashboard = () => {
       )}
 
       {/* ——— ACHIEVEMENTS ——— */}
-      {(user.achievements || []).length > 0 && (
-        <section className="dashboard-full" style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '17px', marginBottom: '12px' }}>{t('dashboard.achievements')}</h3>
+      <section className="card dashboard-card" style={{ padding: '20px', marginBottom: '20px' }}>
+        <h3 style={{ fontSize: '17px', marginBottom: '12px' }}>{t('dashboard.achievements')}</h3>
+        {(user.achievements || []).length > 0 ? (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {(user.achievements || []).map((id, index) => (
               <div key={index} className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Award size={18} color="var(--accent)" />
-                <span style={{ fontSize: '13px', fontWeight: 600 }}>{id}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{ACHIEVEMENT_LABELS[id]?.[lang === 'en' ? 'en' : 'pl'] ?? id}</span>
               </div>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '18px 8px', textAlign: 'center' }}>
+            <Award size={26} color="var(--border-strong)" />
+            <p style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.5 }}>{t('dashboard.achievementsEmpty')}</p>
+          </div>
+        )}
+      </section>
 
       {/* ——— EQUIPMENT ——— */}
       <section className="dashboard-full" style={{ marginBottom: '20px' }}>
         <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>{t('dashboard.combatEquip')}</h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(88px, 1fr))', gap: '8px', marginBottom: '14px' }}>
           {(['weapon', 'armor', 'accessory'] as const).map(slot => {
             const item = equipped[slot];
             return (
@@ -682,7 +693,7 @@ export const Dashboard = () => {
         {inventory.length > 0 && (
           <div className="card" style={{ padding: '16px', marginBottom: '16px' }}>
             <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-secondary)' }}>{t('dashboard.backpack')} ({inventory.length} {t('dashboard.itemsCount')})</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
               {inventory.map(item => (
                 <div
                   key={item.id}
@@ -731,7 +742,7 @@ export const Dashboard = () => {
       {/* ——— MUSCLE STATS ——— */}
       <section className="dashboard-full">
         <h3 style={{ fontSize: '17px', marginBottom: '14px' }}>{t('dashboard.muscleStats')}</h3>
-        <div className="muscle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="muscle-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           {['Chest', 'Back', 'Legs', 'Arms', 'Core', 'Shoulders'].map((muscle) => {
             const stat = user.muscleStats[muscle];
             const mNextExp = stat.level >= 1000 ? 1 : EXP_TO_NEXT_LEVEL(stat.level);
@@ -739,9 +750,9 @@ export const Dashboard = () => {
 
             return (
               <div key={muscle} className="card" style={{ padding: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '2px 8px', marginBottom: '2px' }}>
                   <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{t('dashboard.' + muscle.toLowerCase())}</p>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-base)' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-base)', whiteSpace: 'nowrap' }}>
                     {stat.level >= 1000 ? 'MAX' : `${t('dashboard.level')} ${stat.level} (${mPercent}%)`}
                   </span>
                 </div>
