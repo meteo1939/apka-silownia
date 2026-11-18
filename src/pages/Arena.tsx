@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore, getPrestigeRank, type Item, type MuscleStat } from '../store/useAuthStore';
 import { Navigation } from '../components/Navigation';
+import { useToast } from '../components/toastContext';
 import { useTranslation } from '../lib/translations';
-import { Swords, Heart, Search, Zap, Flame, Trophy, Cpu, Eye, Coins } from 'lucide-react';
+import { Swords, Heart, Search, Flame, Trophy, Cpu, Eye, Coins } from 'lucide-react';
 
 interface CombatStats {
   name: string;
@@ -138,6 +139,7 @@ const ATTACK_ACTIONS_EN = [
 
 export const Arena = () => {
   const { t, lang } = useTranslation();
+  const toast = useToast();
   const user = useAuthStore(state => state.user);
   const addPrestige = useAuthStore(state => state.addPrestige);
   const addCoins = useAuthStore(state => state.addCoins);
@@ -215,7 +217,7 @@ export const Arena = () => {
         else if (entry.dmgType === 'dodge') {
              const defIsPlayer = entry.attackerName === enemy?.name;
              setLastHitEffect('dodge-wave');
-             const text = lang === 'pl' ? '💨 UNIK!' : '💨 DODGE!';
+             const text = lang === 'pl' ? 'UNIK!' : 'DODGE!';
              if (defIsPlayer) {
                   setDefenderAnim('ghost-p');
                   setFloatsP(prev => [...prev, { id: floatId, text, color: 'var(--text-secondary)' }]);
@@ -227,7 +229,7 @@ export const Arena = () => {
         else if (entry.dmgType === 'block') {
              const defIsPlayer = entry.attackerName === enemy?.name;
              setLastHitEffect('block-shield');
-             const text = lang === 'pl' ? '🛡 BLOK!' : '🛡 BLOCK!';
+             const text = lang === 'pl' ? 'BLOK!' : 'BLOCK!';
              if (defIsPlayer) {
                   setDefenderAnim('block-p');
                   setFloatsP(prev => [...prev, { id: floatId, text, color: 'var(--text-primary)' }]);
@@ -268,8 +270,8 @@ export const Arena = () => {
               addPrestige(pGain);
               addCoins(cGain);
               setCombatLog(prev => [...prev, lang === 'pl' 
-                ? `🏆 NAGRODA: Zyskujesz +${pGain} Prestiżu, +${cGain} Złota.`
-                : `🏆 REWARD: You gain +${pGain} Prestige, +${cGain} Gold.`
+                ? `NAGRODA: Zyskujesz +${pGain} Prestiżu, +${cGain} Złota.`
+                : `REWARD: You gain +${pGain} Prestige, +${cGain} Gold.`
               ]);
            }
            setLastRewards({ gold: cGain, prestige: pGain, won: !!entry.won });
@@ -294,16 +296,16 @@ export const Arena = () => {
   const findOpponents = () => {
     setIsSearching(true);
     setSearchLogs([
-      lang === 'pl' ? "📡 Nawiązywanie połączenia z radarami Areny..." : "📡 Establishing connection with Arena radars...",
-      (lang === 'pl' ? "🛡️ Skanowanie sygnatur gladiatorów w pobliżu poziomu mocy: " : "🛡️ Scanning gladiator signatures near power level: ") + playerBaseTotalSum
+      lang === 'pl' ? "Nawiązywanie połączenia z radarami Areny..." : "Establishing connection with Arena radars...",
+      (lang === 'pl' ? "Skanowanie sygnatur gladiatorów w pobliżu poziomu mocy: " : "Scanning gladiator signatures near power level: ") + playerBaseTotalSum
     ]);
     
     setTimeout(() => {
-      setSearchLogs(prev => [...prev, lang === 'pl' ? "🛰️ Zlokalizowano pasujących wojowników w sektorze południowym." : "🛰️ Located matching fighters in the southern sector."]);
+      setSearchLogs(prev => [...prev, lang === 'pl' ? "Zlokalizowano pasujących wojowników w sektorze południowym." : "Located matching fighters in the southern sector."]);
     }, 600);
     
     setTimeout(() => {
-      setSearchLogs(prev => [...prev, lang === 'pl' ? "⚔️ Sygnatury bojowe pobrane. Generowanie kart pretendentów..." : "⚔️ Combat signatures retrieved. Generating contender cards..."]);
+      setSearchLogs(prev => [...prev, lang === 'pl' ? "Sygnatury bojowe pobrane. Generowanie kart pretendentów..." : "Combat signatures retrieved. Generating contender cards..."]);
     }, 1300);
 
     setTimeout(() => {
@@ -359,8 +361,8 @@ export const Arena = () => {
     let pTurn = pStats.energy >= eStats.energy;
 
     const startMsg = lang === 'pl'
-      ? `⚔️ Rozpoczęcie pojedynku! Sędzia daje znak. Inicjatywę przejmuje ${pTurn ? pStats.name : eStats.name} (${pTurn ? 'Szybszy refleks' : 'Zaskoczenie'}).`
-      : `⚔️ Match starts! The referee gives the signal. ${pTurn ? pStats.name : eStats.name} takes initiative (${pTurn ? 'Faster reflexes' : 'Surprise'}).`;
+      ? `Rozpoczęcie pojedynku! Sędzia daje znak. Inicjatywę przejmuje ${pTurn ? pStats.name : eStats.name} (${pTurn ? 'Szybszy refleks' : 'Zaskoczenie'}).`
+      : `Match starts! The referee gives the signal. ${pTurn ? pStats.name : eStats.name} takes initiative (${pTurn ? 'Faster reflexes' : 'Surprise'}).`;
 
     logs.push({ 
        msg: startMsg, 
@@ -379,8 +381,8 @@ export const Arena = () => {
       if (isDodge) {
          logs.push({ 
             msg: lang === 'pl'
-              ? `💨 ${attacker.name} ${action}, ale ${defender.name} wymanewrował cios sprytnym unikiem!`
-              : `💨 ${attacker.name} ${action}, but ${defender.name} evaded the blow with a clever dodge!`, 
+              ? `${attacker.name} ${action}, ale ${defender.name} wymanewrował cios sprytnym unikiem!`
+              : `${attacker.name} ${action}, but ${defender.name} evaded the blow with a clever dodge!`, 
             newPlayerHp: pHP, newEnemyHp: eHP, attackerName: attacker.name, isEnd: false, dmgType: 'dodge' 
          });
       } else {
@@ -396,14 +398,14 @@ export const Arena = () => {
          if (isBlock) {
            logs.push({ 
                msg: lang === 'pl'
-                 ? `🛡 ${defender.name} blokuje tarczą cios ${attacker.name}a! Pochłonięto większość energii (${finalDmg} przenikło).`
-                 : `🛡 ${defender.name} blocks ${attacker.name}'s strike with a shield! Absorbed most energy (${finalDmg} penetrated).`, 
+                 ? `${defender.name} blokuje tarczą cios ${attacker.name}a! Pochłonięto większość energii (${finalDmg} przenikło).`
+                 : `${defender.name} blocks ${attacker.name}'s strike with a shield! Absorbed most energy (${finalDmg} penetrated).`, 
                newPlayerHp: pHP, newEnemyHp: eHP, attackerName: attacker.name, isEnd: false, dmgType: 'block', finalDmg 
            });
          } else {
            const critStr = isCrit 
-             ? (lang === 'pl' ? `🔥 KRYTYCZNIE!` : `🔥 CRITICAL!`) 
-             : `💥`;
+             ? (lang === 'pl' ? `KRYTYCZNIE!` : `CRITICAL!`) 
+             : ``;
            logs.push({ 
                msg: lang === 'pl'
                  ? `${critStr} ${attacker.name} ${action} i zadaje ${finalDmg} obrażeń dla ${defender.name}!`
@@ -420,15 +422,15 @@ export const Arena = () => {
     if (pHP > 0) {
       logs.push({ 
         msg: lang === 'pl'
-          ? `👑 ZWYCIĘSTWO! ${pStats.name} pokonuje rywala i triumfuje na arenie!`
-          : `👑 VICTORY! ${pStats.name} defeats the rival and triumphs in the arena!`, 
+          ? `ZWYCIĘSTWO! ${pStats.name} pokonuje rywala i triumfuje na arenie!`
+          : `VICTORY! ${pStats.name} defeats the rival and triumphs in the arena!`, 
         newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: true, won: true 
       });
     } else {
       logs.push({ 
         msg: lang === 'pl'
-          ? `💀 PORAŻKA. ${eStats.name} powala Cię na ziemię jednym mocnym uderzeniem.`
-          : `💀 DEFEAT. ${eStats.name} knocks you to the ground with a powerful blow.`, 
+          ? `PORAŻKA. ${eStats.name} powala Cię na ziemię jednym mocnym uderzeniem.`
+          : `DEFEAT. ${eStats.name} knocks you to the ground with a powerful blow.`, 
         newPlayerHp: pHP, newEnemyHp: eHP, attackerName: '', isEnd: true, won: false 
       });
     }
@@ -441,7 +443,7 @@ export const Arena = () => {
 
     const allowed = await consumeArenaFight();
     if (!allowed) {
-       alert(t('arena.noFights'));
+       toast({ text: t('arena.noFights'), tone: 'error' });
        return;
     }
 
@@ -453,7 +455,7 @@ export const Arena = () => {
     
     const simLog = generateEncounterLog(pStart, eStart);
     setLogQueue(simLog);
-    setCombatLog([lang === 'pl' ? `🗡️ Wkraczasz na piasek Koloseum...` : `🗡️ You step onto the sands of the Colosseum...`]);
+    setCombatLog([lang === 'pl' ? `Wkraczasz na piasek Koloseum...` : `You step onto the sands of the Colosseum...`]);
     setIsFighting(true);
     setIsGameOver(false);
   };
@@ -556,18 +558,28 @@ export const Arena = () => {
 
     <div className="container app-page page-arena page-transition" style={{ display: 'flex', flexDirection: 'column' }}>
       
-      <header style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '6px' }}>{t('arena.title')}</h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '12px', background: 'var(--surface-2)', color: myLeague.color, fontWeight: 'bold', border: '1px solid var(--border-color)' }}>
-              {getPrestigeRankName(user.prestige || 0)}
-            </span>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              {lang === 'pl' ? 'Prestiż' : 'Prestige'}: {user.prestige || 0}
-            </span>
-            <span style={{ fontSize: '13px', color: currentFightsLeft > 0 ? 'var(--text-secondary)' : 'var(--danger)', fontWeight: 'bold' }}>
-              {lang === 'pl' ? `Walki: ${currentFightsLeft}/5` : `Fights: ${currentFightsLeft}/5`}
-            </span>
+      <header className="arena-head">
+        <div>
+          <span className="eyebrow">{t('arena.sector')}</span>
+          <h1 className="arena-title">{t('arena.title')}</h1>
+        </div>
+        <div className="arena-hud">
+          <div className="arena-chip">
+            <span className="arena-chip-label">{t('arena.rank')}</span>
+            <strong className="arena-chip-value is-rank" style={{ color: myLeague.color }}>{getPrestigeRankName(user.prestige || 0)}</strong>
+          </div>
+          <div className="arena-chip">
+            <span className="arena-chip-label">{t('arena.prestigeReward')}</span>
+            <strong className="arena-chip-value stat-display">{(user.prestige || 0).toLocaleString()}</strong>
+          </div>
+          <div className={`arena-chip${currentFightsLeft <= 0 ? ' is-empty' : ''}`}>
+            <span className="arena-chip-label">{t('arena.fights')}</span>
+            <div className="arena-pips" role="img" aria-label={`${currentFightsLeft}/5`}>
+              {[0, 1, 2, 3, 4].map(slot => (
+                <span key={slot} className={`arena-pip${slot < currentFightsLeft ? ' is-on' : ''}`} />
+              ))}
+            </div>
+          </div>
         </div>
       </header>
 
@@ -717,21 +729,11 @@ export const Arena = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
           
           {/* ARENA BATTLEFIELD */}
-          <div style={{ 
-            position: 'relative', 
-            height: '220px', 
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border-strong)',
-            borderRadius: '14px', 
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '20px',
-            boxShadow: 'none'
-          }}>
-            {/* Subtle grid */}
-            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)', backgroundSize: '24px 24px', pointerEvents: 'none' }} />
+          <div className="arena-stage">
+            <div className="arena-stage-top">
+              <span>ARENA // 07</span>
+              <span>{lang === 'pl' ? 'Pojedynek' : 'Duel'}</span>
+            </div>
             
             {/* Visual Slashing Overlays */}
             {lastHitEffect === 'slash-1' && (
@@ -783,29 +785,16 @@ export const Arena = () => {
             )}
 
             {/* LEFTSIDE: PLAYER FIGHTER PORTRAIT */}
-            <div style={{ 
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', 
-              width: '100px', transition: 'transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)', ...playerStyle 
-            }}>
-              {/* Avatar Shield Frame */}
-              <div style={{ 
-                width: '64px', height: '64px', borderRadius: '50%', 
-                border: '2px solid var(--accent-base)',
-                background: 'var(--surface)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative'
-              }}>
-                <svg viewBox="0 0 24 24" width="30" height="30" stroke="var(--accent-base)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <div className="arena-fighter" style={playerStyle}>
+              <div className="arena-portrait is-player">
+                <svg viewBox="0 0 24 24" width="32" height="32" stroke="var(--accent)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
-                {/* Prestige Rank indicator */}
-                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--accent-base)', color: 'var(--accent-contrast)', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
-                  {lang === 'pl' ? 'TY' : 'YOU'}
-                </div>
+                <div className="arena-fighter-tag">{lang === 'pl' ? 'TY' : 'YOU'}</div>
               </div>
-              <strong style={{ fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px' }}>{player.name}</strong>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                {lang === 'pl' ? 'Moc' : 'Power'}: {player.totalLvl}
+              <strong className="arena-fighter-name">{player.name}</strong>
+              <div className="arena-fighter-power">
+                {lang === 'pl' ? 'Moc' : 'Power'} {player.totalLvl}
               </div>
               
               {/* Flying Damage Floating Texts for Player */}
@@ -815,48 +804,26 @@ export const Arena = () => {
             </div>
 
             {/* CENTER FLAME OF WAR / VS BADGE */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', zIndex: 5 }}>
-              <div style={{ 
-                width: '40px', height: '40px', borderRadius: '50%', 
-                background: 'var(--surface)',
-                border: '1px solid var(--accent-border)',
-                color: 'var(--accent)', fontWeight: '700', fontSize: '14px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                VS
-              </div>
-              <span style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-                {lang === 'pl' ? 'Runda' : 'Round'} {combatLog.length}
-              </span>
+            <div className="arena-vs">
+              <div className="arena-vs-badge">VS</div>
+              <span className="arena-vs-round">{t('arena.round')} {combatLog.length}</span>
             </div>
 
             {/* RIGHTSIDE: ENEMY FIGHTER PORTRAIT */}
-            <div style={{ 
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', 
-              width: '100px', transition: 'transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)', ...enemyStyle 
-            }}>
-              {/* Enemy Boss Frame */}
-              <div style={{ 
-                width: '64px', height: '64px', borderRadius: '50%', 
-                border: '2px solid var(--danger)',
-                background: 'var(--surface)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative'
-              }}>
-                <svg viewBox="0 0 24 24" width="30" height="30" stroke="var(--danger)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <div className="arena-fighter" style={enemyStyle}>
+              <div className="arena-portrait is-enemy">
+                <svg viewBox="0 0 24 24" width="32" height="32" stroke="var(--danger)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
                   <line x1="12" y1="22" x2="12" y2="15.5" />
                   <polyline points="22 8.5 12 15.5 2 8.5" />
                   <polyline points="2 15.5 12 15.5 22 15.5" />
                   <polyline points="12 2 12 15.5" />
                 </svg>
-                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--danger)', color: 'white', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
-                  {lang === 'pl' ? 'RYWAL' : 'RIVAL'}
-                </div>
+                <div className="arena-fighter-tag">{lang === 'pl' ? 'RYWAL' : 'RIVAL'}</div>
               </div>
-              <strong style={{ fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px' }}>{enemy.name}</strong>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                {lang === 'pl' ? 'Moc' : 'Power'}: {enemy.totalLvl}
+              <strong className="arena-fighter-name">{enemy.name}</strong>
+              <div className="arena-fighter-power">
+                {lang === 'pl' ? 'Moc' : 'Power'} {enemy.totalLvl}
               </div>
               
               {/* Flying Damage Floating Texts for Enemy */}
@@ -871,25 +838,22 @@ export const Arena = () => {
           <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
             {/* PLAYER HEALTH & ENERGY */}
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                  {player.name} ({lang === 'pl' ? 'Ty' : 'You'})
-                </span>
-                <span style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 'bold' }}>{player.hp} / {player.maxHp} HP</span>
+            <div className="arena-status-block">
+              <div className="arena-status-head">
+                <span className="arena-status-role">{lang === 'pl' ? 'Ty' : 'You'}</span>
+                <span className="arena-status-name">{player.name}</span>
+                <span className="arena-status-hp"><Heart size={13} fill="currentColor" /> {player.hp} / {player.maxHp}</span>
               </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Heart size={14} color="var(--danger)" fill="currentColor" />
-                <div style={{ width: '100%', height: '10px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${getPercentage(player.hp, player.maxHp)}%`, height: '100%', background: 'var(--danger)', transition: '0.15s ease-out' }} />
+              <div className="arena-bar-row">
+                <span className="arena-bar-label">HP</span>
+                <div className="arena-bar-track">
+                  <div className="arena-bar-fill hp" style={{ width: `${getPercentage(player.hp, player.maxHp)}%` }} />
                 </div>
               </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={14} color="var(--accent)" fill="currentColor" />
-                <div style={{ width: '100%', height: '6px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${getPercentage(player.energy, player.maxEnergy)}%`, height: '100%', background: 'var(--accent)', transition: '0.15s ease-out' }} />
+              <div className="arena-bar-row">
+                <span className="arena-bar-label">EN</span>
+                <div className="arena-bar-track is-energy">
+                  <div className="arena-bar-fill energy" style={{ width: `${getPercentage(player.energy, player.maxEnergy)}%` }} />
                 </div>
               </div>
             </div>
@@ -897,25 +861,22 @@ export const Arena = () => {
             <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
 
             {/* ENEMY HEALTH & ENERGY */}
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                  {enemy.name} ({lang === 'pl' ? 'Przeciwnik' : 'Opponent'})
-                </span>
-                <span style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 'bold' }}>{enemy.hp} / {enemy.maxHp} HP</span>
+            <div className="arena-status-block">
+              <div className="arena-status-head">
+                <span className="arena-status-role">{t('arena.enemy')}</span>
+                <span className="arena-status-name">{enemy.name}</span>
+                <span className="arena-status-hp"><Heart size={13} fill="currentColor" /> {enemy.hp} / {enemy.maxHp}</span>
               </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Heart size={14} color="var(--danger)" fill="currentColor" />
-                <div style={{ width: '100%', height: '10px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${getPercentage(enemy.hp, enemy.maxHp)}%`, height: '100%', background: 'var(--danger)', transition: '0.15s ease-out' }} />
+              <div className="arena-bar-row">
+                <span className="arena-bar-label">HP</span>
+                <div className="arena-bar-track">
+                  <div className="arena-bar-fill hp" style={{ width: `${getPercentage(enemy.hp, enemy.maxHp)}%` }} />
                 </div>
               </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={14} color="var(--accent)" fill="currentColor" />
-                <div style={{ width: '100%', height: '6px', background: 'var(--surface-3)', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${getPercentage(enemy.energy, enemy.maxEnergy)}%`, height: '100%', background: 'var(--accent)', transition: '0.15s ease-out' }} />
+              <div className="arena-bar-row">
+                <span className="arena-bar-label">EN</span>
+                <div className="arena-bar-track is-energy">
+                  <div className="arena-bar-fill energy" style={{ width: `${getPercentage(enemy.energy, enemy.maxEnergy)}%` }} />
                 </div>
               </div>
             </div>
@@ -957,7 +918,7 @@ export const Arena = () => {
                     return (
                       <div key={i} style={{ 
                          fontSize: '11px', lineHeight: '1.4', padding: '6px',
-                         color: log.includes('🏆') ? 'var(--accent)' : 'var(--text-secondary)',
+                         color: (log.includes('NAGRODA:') || log.includes('REWARD:')) ? 'var(--accent)' : 'var(--text-secondary)',
                          background: 'transparent', 
                          borderLeft: isPlayerAct ? '2px solid var(--accent-base)' : '2px solid var(--border-strong)',
                          borderRadius: '4px'
@@ -977,7 +938,8 @@ export const Arena = () => {
                   {lastRewards.won ? <Trophy size={28} color="var(--accent)" /> : <Flame size={28} color="var(--danger)" />}
                 </div>
                 
-                <h2 style={{ fontSize: '24px', marginBottom: '8px', color: lastRewards.won ? 'var(--accent)' : 'var(--danger)', fontWeight: 800 }}>
+                <span className="eyebrow">{t('arena.combatReport')}</span>
+                <h2 style={{ fontSize: '28px', margin: '4px 0 8px', color: lastRewards.won ? 'var(--accent)' : 'var(--danger)', fontWeight: 800 }}>
                    {lastRewards.won ? t('arena.victory') : (lang === 'pl' ? 'ZAPISANY NA TARCE' : 'DEFEATED IN BATTLE')}
                 </h2>
                 {lastRewards.won ? (
@@ -987,14 +949,14 @@ export const Arena = () => {
                            ? 'Twoja postać odnosi spektakularny triumf. Złoto i sława są Twoje!'
                            : 'Your avatar achieves a spectacular victory. Gold and glory are yours!'}
                        </p>
-                       <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', marginBottom: '24px' }}>
+                       <div style={{ display: 'flex', justifyContent: 'center', gap: '36px', marginBottom: '24px' }}>
                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--accent)' }}>+{lastRewards.gold}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{t('arena.goldReward').toUpperCase()}</div>
+                              <div className="stat-display" style={{ fontSize: '36px', color: 'var(--accent)' }}>+{lastRewards.gold}</div>
+                              <div className="eyebrow">{t('arena.goldReward')}</div>
                            </div>
                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)' }}>+{lastRewards.prestige}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{t('arena.prestigeReward').toUpperCase()}</div>
+                              <div className="stat-display" style={{ fontSize: '36px', color: 'var(--text)' }}>+{lastRewards.prestige}</div>
+                              <div className="eyebrow">{t('arena.prestigeReward')}</div>
                            </div>
                        </div>
                    </>
