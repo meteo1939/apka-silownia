@@ -256,6 +256,7 @@ export const Workout = () => {
 
   const elapsed = active ? Math.max(0, Math.floor((now - new Date(active.startedAt).getTime()) / 1000)) : 0;
   const restLeft = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
+  const restProgress = restEndsAt ? Math.min(100, Math.max(0, (restLeft / Math.max(restLength, 1)) * 100)) : 0;
 
   useEffect(() => {
     if (restEndsAt && restLeft <= 0) setRestEndsAt(null);
@@ -264,6 +265,17 @@ export const Workout = () => {
   const stats = useMemo(() => (
     active ? computeSessionStats(active.exercises, history) : null
   ), [active, history]);
+
+  const weekSummary = useMemo(() => {
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return history.reduce((acc, entry) => {
+      const completed = new Date(entry.completedAt).getTime();
+      if (Number.isNaN(completed) || completed < since) return acc;
+      acc.sessions += 1;
+      acc.volume += entry.totalVolume || 0;
+      return acc;
+    }, { sessions: 0, volume: 0 });
+  }, [history]);
 
   const buildExercise = (name: string, muscle: string, targetReps: number, setCount: number): WorkoutExerciseLog => {
     const last = getLastExerciseRecord(history, name);
@@ -598,9 +610,12 @@ export const Workout = () => {
 
   const renderHistory = () => (
     <section className="card" style={{ padding: 18, marginTop: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-        <h3 style={{ fontSize: 16, margin: 0 }}>{t('workout.historyTitle')}</h3>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{history.length} {workoutNoun(history.length)}</span>
+      <div className="workout-section-head">
+        <div>
+          <span className="eyebrow">{t('workout.recentSessions')}</span>
+          <h3 className="workout-section-title">{t('workout.historyTitle')}</h3>
+        </div>
+        <span className="count-chip">{history.length} {workoutNoun(history.length)}</span>
       </div>
 
       {historyLoading && history.length === 0 && (
@@ -626,7 +641,7 @@ export const Workout = () => {
                 </div>
               </div>
               <div className="session-history-stats">
-                <span>{Math.round(workout.totalVolume).toLocaleString(locale)} kg</span>
+                <span className="session-history-volume">{Math.round(workout.totalVolume).toLocaleString(locale)} <small>kg</small></span>
                 {workout.prs?.length > 0 && (
                   <span style={{ color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                     <Trophy size={12} /> {workout.prs.length}
@@ -681,12 +696,27 @@ export const Workout = () => {
       <Navigation />
 
       <div className="container app-page page-workout page-transition">
-        <header style={{ marginBottom: 22 }}>
-          <h1 className="text-gradient" style={{ fontSize: 28, marginBottom: 6 }}>{t('workout.title')}</h1>
-          <p style={{ color: 'var(--text-2)', fontSize: 14 }}>
-            {active ? t('workout.sessionTitle') : t('workout.selectPlanDesc')}
-          </p>
-        </header>
+        {!active && (
+          <header className="workout-head">
+            <div>
+              <span className="eyebrow">{t('workout.command')}</span>
+              <h1 className="workout-title">{t('workout.title')}</h1>
+              <p className="workout-subtitle">{t('workout.selectPlanDesc')}</p>
+            </div>
+            <div className="workout-week">
+              <div className="workout-week-stat">
+                <span className="workout-week-label">{t('workout.weekSessions')}</span>
+                <span className="stat-display workout-week-value">{weekSummary.sessions}</span>
+              </div>
+              <div className="workout-week-stat">
+                <span className="workout-week-label">{t('workout.weekVolume')}</span>
+                <span className="stat-display workout-week-value">
+                  {Math.round(weekSummary.volume).toLocaleString(locale)} <small>kg</small>
+                </span>
+              </div>
+            </div>
+          </header>
+        )}
 
         {!active && (
           <>
@@ -740,7 +770,7 @@ export const Workout = () => {
             </div>
 
             <section style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, marginBottom: 12 }}>{t('workout.selectPlan')}</h2>
+              <h2 className="workout-section-title" style={{ marginBottom: 12 }}>{t('workout.selectPlan')}</h2>
               <div className="session-plan-grid">
                 {orderedPlans.map(plan => {
                   const planName = t(`workout.plans.${plan.id}.name`, plan.id);
@@ -778,36 +808,31 @@ export const Workout = () => {
 
         {active && (
           <>
-            <div className="session-header">
-              <div>
-                <div className="session-timer-label">{t('workout.sessionTitle')} · {active.name}</div>
-                <div className="session-timer">{formatClock(elapsed)}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {active.exercises.length} {exerciseNoun(active.exercises.length)} · {stats?.totalSets || 0} {setNoun(stats?.totalSets || 0)} · {Math.round(stats?.totalVolume || 0).toLocaleString(locale)} kg
+            <div className="session-hud">
+              <div className="session-hud-main">
+                <span className="eyebrow session-live">
+                  <span className="session-live-dot" /> {t('workout.liveSession')} · {active.name}
+                </span>
+                <div className="session-hud-time stat-display">{formatClock(elapsed)}</div>
+                <div className="session-hud-meta">
+                  <span><strong>{active.exercises.length}</strong> {exerciseNoun(active.exercises.length)}</span>
+                  <span><strong>{stats?.totalSets || 0}</strong> {setNoun(stats?.totalSets || 0)}</span>
+                  <span><strong>{Math.round(stats?.totalVolume || 0).toLocaleString(locale)}</strong> kg</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('workout.restLength')}</span>
+                <label className="session-rest-pick">
+                  <span>{t('workout.restLength')}</span>
                   <select
                     value={restLength}
                     onChange={event => setRestLength(Number(event.target.value))}
                     aria-label={t('workout.restLength')}
-                    style={{
-                      background: 'var(--surface-2)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 7,
-                      color: 'var(--text-2)',
-                      padding: '3px 6px',
-                      fontSize: 11,
-                      fontFamily: 'inherit',
-                    }}
                   >
                     {[60, 90, 120, 180].map(value => (
                       <option key={value} value={value}>{value} s</option>
                     ))}
                   </select>
-                </div>
+                </label>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div className="session-hud-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setCancelOpen(true)} style={{ padding: '9px 12px' }}>
                   <X size={15} /> {t('workout.cancelWorkout')}
                 </button>
@@ -849,9 +874,16 @@ export const Workout = () => {
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="session-prev">
-                        {t('workout.previous')}: {lastBest ? `${lastBest.weight > 0 ? `${lastBest.weight} kg × ` : ''}${lastBest.reps}` : '—'}
-                      </span>
+                      <div className="session-prev">
+                        <span className="session-prev-label">{t('workout.previous')}</span>
+                        {lastBest ? (
+                          <span className="session-prev-value">
+                            {lastBest.weight > 0 ? `${lastBest.weight} kg × ${lastBest.reps}` : `${lastBest.reps} ${t('workout.repsUnit')}`}
+                          </span>
+                        ) : (
+                          <span className="session-prev-value is-empty">—</span>
+                        )}
+                      </div>
                       <button
                         type="button"
                         className="icon-btn"
@@ -870,9 +902,23 @@ export const Workout = () => {
                   </div>
 
                   <div className="session-table">
-                    {exercise.sets.map((set, index) => (
+                    <div className="session-table-head" aria-hidden="true">
+                      <span>#</span>
+                      <span>{t('workout.previous')}</span>
+                      <span>kg</span>
+                      <span>{t('workout.repsPlaceholder')}</span>
+                      <span>RPE</span>
+                      <span />
+                    </div>
+                    {exercise.sets.map((set, index) => {
+                      const previousSet = last?.exercise.sets[index];
+                      const previousLabel = previousSet && (previousSet.weight > 0 || previousSet.reps > 0)
+                        ? `${previousSet.weight > 0 ? `${previousSet.weight}×` : ''}${previousSet.reps}`
+                        : '—';
+                      return (
                       <div key={set.id} className={`session-set${set.completed ? ' is-completed' : ''}`}>
                         <span className="session-set-num">{index + 1}</span>
+                        <span className="session-set-prev" aria-hidden="true">{previousLabel}</span>
                         <input
                           type="number"
                           inputMode="decimal"
@@ -919,7 +965,8 @@ export const Workout = () => {
                           <Check size={16} />
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="session-actions">
@@ -986,20 +1033,25 @@ export const Workout = () => {
 
       {restEndsAt && (
         <div className="rest-bar" role="status" aria-live="polite">
-          <div>
-            <div className="rest-bar-label">{t('workout.restTimer')}</div>
-            <div className="rest-bar-time">{formatClock(restLeft)}</div>
+          <div className="rest-bar-top">
+            <div>
+              <div className="rest-bar-label">{t('workout.restTimer')}</div>
+              <div className="rest-bar-time stat-display">{formatClock(restLeft)}</div>
+            </div>
+            <div className="rest-bar-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setRestEndsAt(Date.now() + restLength * 1000)} style={{ padding: '6px 9px', fontSize: 11 }}>
+                <RotateCcw size={13} />
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setRestEndsAt(value => (value || Date.now()) + 30000)} style={{ padding: '6px 9px', fontSize: 11 }}>
+                {t('workout.add30')}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setRestEndsAt(null)} style={{ padding: '6px 10px', fontSize: 11 }}>
+                {t('workout.skipRest')}
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setRestEndsAt(Date.now() + restLength * 1000)} style={{ padding: '6px 9px', fontSize: 11 }}>
-              <RotateCcw size={13} />
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setRestEndsAt(value => (value || Date.now()) + 30000)} style={{ padding: '6px 9px', fontSize: 11 }}>
-              {t('workout.add30')}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setRestEndsAt(null)} style={{ padding: '6px 10px', fontSize: 11 }}>
-              {t('workout.skipRest')}
-            </button>
+          <div className="rest-bar-track">
+            <span style={{ width: `${restProgress}%` }} />
           </div>
         </div>
       )}
@@ -1039,10 +1091,10 @@ export const Workout = () => {
 
             <div className="onboarding-body" style={{ marginTop: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                <div className="progress-stat"><span>{t('workout.duration')}</span><strong style={{ fontSize: 18 }}>{formatClock(elapsed)}</strong></div>
-                <div className="progress-stat"><span>{t('workout.volume')}</span><strong style={{ fontSize: 18 }}>{Math.round(stats.totalVolume).toLocaleString(locale)} kg</strong></div>
-                <div className="progress-stat"><span>{t('workout.setsCount')}</span><strong style={{ fontSize: 18 }}>{stats.totalSets}</strong></div>
-                <div className="progress-stat"><span>EXP</span><strong style={{ fontSize: 18, color: 'var(--accent)' }}>+{stats.expGained}</strong></div>
+                <div className="progress-stat"><span>{t('workout.duration')}</span><strong className="stat-display" style={{ fontSize: 22 }}>{formatClock(elapsed)}</strong></div>
+                <div className="progress-stat"><span>{t('workout.volume')}</span><strong className="stat-display" style={{ fontSize: 22 }}>{Math.round(stats.totalVolume).toLocaleString(locale)} kg</strong></div>
+                <div className="progress-stat"><span>{t('workout.setsCount')}</span><strong className="stat-display" style={{ fontSize: 22 }}>{stats.totalSets}</strong></div>
+                <div className="progress-stat"><span>EXP</span><strong className="stat-display" style={{ fontSize: 22, color: 'var(--accent)' }}>+{stats.expGained}</strong></div>
               </div>
 
               {stats.prs.length > 0 && (
