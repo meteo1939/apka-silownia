@@ -799,7 +799,7 @@ export const Arena = () => {
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
                 {/* Prestige Rank indicator */}
-                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--accent-base)', color: '#1a0b02', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
+                <div style={{ position: 'absolute', bottom: '-4px', background: 'var(--accent-base)', color: 'var(--accent-contrast)', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>
                   {lang === 'pl' ? 'TY' : 'YOU'}
                 </div>
               </div>

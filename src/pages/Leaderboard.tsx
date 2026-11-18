@@ -130,13 +130,13 @@ export const Leaderboard = () => {
         <div style={{ display: 'flex', gap: '4px', padding: '4px', background: 'var(--surface-hover)', borderRadius: '12px', marginBottom: '12px' }}>
           <button
             onClick={() => setViewMode('global')}
-            style={{ flex: 1, padding: '9px', border: 'none', background: viewMode === 'global' ? 'var(--accent)' : 'transparent', color: viewMode === 'global' ? '#1a0b02' : 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}
+            style={{ flex: 1, padding: '9px', border: 'none', background: viewMode === 'global' ? 'var(--accent)' : 'transparent', color: viewMode === 'global' ? 'var(--accent-contrast)' : 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}
           >
             {lang === 'pl' ? 'Globalny' : 'Global'}
           </button>
           <button
             onClick={() => setViewMode('friends')}
-            style={{ flex: 1, padding: '9px', border: 'none', background: viewMode === 'friends' ? 'var(--accent)' : 'transparent', color: viewMode === 'friends' ? '#1a0b02' : 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}
+            style={{ flex: 1, padding: '9px', border: 'none', background: viewMode === 'friends' ? 'var(--accent)' : 'transparent', color: viewMode === 'friends' ? 'var(--accent-contrast)' : 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}
           >
             {lang === 'pl' ? 'Znajomi' : 'Friends'} {friends.length > 0 ? `(${friends.length})` : ''}
           </button>

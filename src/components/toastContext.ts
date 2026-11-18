@@ -15,12 +15,6 @@ export interface ToastContextValue {
 
 export const ToastContext = createContext<ToastContextValue | null>(null);
 
-export const DEFAULT_TOAST_ICONS: Record<ToastTone, string> = {
-  success: '✅',
-  error: '⚠️',
-  info: 'ℹ️',
-};
-
 export const MAX_TOASTS = 3;
 
 export const useToast = () => {

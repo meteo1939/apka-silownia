@@ -32,16 +32,15 @@ const AVATARS = [
 
 // ——— Avatar border colours ———
 const AVATAR_COLORS = [
-  { id: 'magma',    value: '#f97316', label: 'Magma' },
-  { id: 'silver',   value: '#a3a8b0', label: 'Srebro' },
-  { id: 'white',    value: '#eceef1', label: 'Biel' },
-  { id: 'graphite', value: '#565b63', label: 'Grafit' },
+  { id: 'magma',    value: '#c7cbd1', label: 'Stal' },
+  { id: 'silver',   value: '#9aa0a8', label: 'Srebro' },
+  { id: 'white',    value: '#f1f2f4', label: 'Biel' },
+  { id: 'graphite', value: '#5a5f66', label: 'Grafit' },
 ];
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
-const QUICK_ACTIONS = [
-  { path: '/workout', key: 'dashboard.quickWorkout', icon: Dumbbell },
+const HERO_SHORTCUTS = [
   { path: '/calories', key: 'dashboard.quickMeal', icon: Apple },
   { path: '/progress', key: 'dashboard.quickProgress', icon: TrendingUp },
   { path: '/arena', key: 'dashboard.quickArena', icon: Swords },
@@ -69,10 +68,10 @@ const getNextMilestone = (streak: number) => {
 // ——— Rarity helpers ———
 const getRarityColor = (rarity: string) => {
   switch (rarity) {
-    case 'Legendary': return '#f97316';
-    case 'Epic': return '#eceef1';
-    case 'Rare': return '#a3a8b0';
-    default: return '#71767f';
+    case 'Legendary': return '#f7f8fa';
+    case 'Epic': return '#c9cdd3';
+    case 'Rare': return '#8b9098';
+    default: return '#6d7178';
   }
 };
 
@@ -150,7 +149,7 @@ export const Dashboard = () => {
 
   const currentIconId = user?.heroIcon || 'Shield';
   const CurrentIconNode = AVATARS.find(a => a.id === currentIconId)?.icon || Shield;
-  const currentAvatarColor = AVATAR_COLORS.find(c => c.id === (user?.heroColor || 'magma'))?.value || '#f97316';
+  const currentAvatarColor = AVATAR_COLORS.find(c => c.id === (user?.heroColor || 'magma'))?.value || '#c7cbd1';
 
   useEffect(() => { checkStreak(); }, [checkStreak]);
 
@@ -221,7 +220,7 @@ export const Dashboard = () => {
     if (unequipConfirm) {
       unequipItem(unequipConfirm);
       setUnequipConfirm(null);
-      toast({ text: t('dashboard.unequipToast'), tone: 'info', icon: '🛡️' });
+      toast({ text: t('dashboard.unequipToast'), tone: 'info' });
     }
   };
 
@@ -256,8 +255,8 @@ export const Dashboard = () => {
       closeOnEscape={false}
       cardStyle={{ padding: '40px 24px', width: '100%', maxWidth: '340px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
     >
-      <div className="animate-chest-shake" style={{ fontSize: '64px', marginBottom: '24px', cursor: 'default' }}>
-        🎁
+      <div className="animate-chest-shake" style={{ marginBottom: '24px', cursor: 'default', display: 'flex', justifyContent: 'center' }}>
+        <Gift size={56} color="var(--accent)" strokeWidth={1.5} />
       </div>
       <h3 style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--text-primary)', fontWeight: 'bold' }}>
         {t('dashboard.openingBoxTitle')}
@@ -340,80 +339,110 @@ export const Dashboard = () => {
 
     <div className="container app-page page-dashboard page-transition">
 
-      {/* ——— HEADER ——— */}
-      <header className="dashboard-header dashboard-full" style={{ marginBottom: '28px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+      {/* ——— HERO ——— */}
+      <header className="dashboard-hero dashboard-full">
+        <div className="hero-top">
           <button
             type="button"
+            className="hero-avatar"
             onClick={() => setShowAvatarPicker(!showAvatarPicker)}
             aria-label={t('dashboard.heroIcon')}
             aria-expanded={showAvatarPicker}
-            style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${currentAvatarColor}`, flexShrink: 0, cursor: 'pointer', padding: 0, transition: '0.2s' }}
+            style={{ borderColor: currentAvatarColor }}
           >
-            <CurrentIconNode size={32} color="var(--accent-base)" />
+            <CurrentIconNode size={30} color="var(--text)" />
           </button>
-          <div>
-            <h1 className="text-gradient" style={{ fontSize: '23px', margin: 0, marginBottom: '4px' }}>
-              {user.level >= 1000 ? t('dashboard.levelMax') : `${t('dashboard.level')} ${user.level}`}
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <p style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: 600, margin: 0 }}>{user.username}</p>
-              <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: prestige.color + '20', color: prestige.color, fontWeight: 'bold' }}>
-                {t('dashboard.prestigeRanks.' + prestige.name, prestige.name)}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '100px', height: '6px', background: 'var(--surface-hover)', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: `${progressPercent}%`, height: '100%', background: 'var(--accent-gradient)' }} />
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                {user.level >= 1000 ? 'MAX' : `${user.totalExp} / ${nextLevelExp} EXP`}
-              </span>
+
+          <div className="hero-identity">
+            <span className="eyebrow hero-eyebrow">
+              {t('dashboard.heroToday')}
+              <span className="hero-date"> · {new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            </span>
+            <h1 className="hero-name">{user.username}</h1>
+            <div className="hero-badges">
+              <span className="hero-badge">{t('dashboard.prestigeRanks.' + prestige.name, prestige.name)}</span>
+              {(user.achievements || []).length > 0 && (
+                <span className="hero-badge hero-badge-muted">
+                  <Award size={11} /> {(user.achievements || []).length}
+                </span>
+              )}
             </div>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Coins size={16} color="var(--accent)" />
-              <span style={{ fontWeight: 'bold', fontSize: '13px' }}>{user.coins || 0}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Award size={16} color="var(--text-secondary)" />
-              <span style={{ fontWeight: 'bold', fontSize: '13px' }}>{user.prestige || 0}</span>
-            </div>
-            <button onClick={() => setShowCustomize(true)} style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.personalization')} aria-label={t('dashboard.personalization')}>
+          <div className="hero-tools">
+            <button type="button" className="hero-tool" onClick={() => setShowCustomize(true)} title={t('dashboard.personalization')} aria-label={t('dashboard.personalization')}>
               <SlidersHorizontal size={16} />
             </button>
-            <button onClick={() => setShowSettings(!showSettings)} style={{ background: showSettings ? 'var(--accent-soft)' : 'transparent', border: showSettings ? '1px solid var(--accent-border)' : '1px solid var(--border-color)', borderRadius: '8px', color: showSettings ? 'var(--accent-base)' : 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.settingsTitle')}>
+            <button type="button" className={`hero-tool${showSettings ? ' is-active' : ''}`} onClick={() => setShowSettings(!showSettings)} title={t('dashboard.settingsTitle')} aria-label={t('dashboard.settingsTitle')}>
               <Settings size={16} />
             </button>
-            <button onClick={() => setShowLogoutConfirm(true)} style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }} title={t('dashboard.logout')}>
+            <button type="button" className="hero-tool" onClick={() => setShowLogoutConfirm(true)} title={t('dashboard.logout')} aria-label={t('dashboard.logout')}>
               <LogOut size={16} />
             </button>
           </div>
         </div>
-      </header>
 
-      {/* ——— QUICK ACTIONS ——— */}
-      <nav className="quick-actions dashboard-full" aria-label={t('dashboard.quickActions')}>
-        {QUICK_ACTIONS.map(action => {
-          const Icon = action.icon;
-          return (
-            <button
-              key={action.path}
-              type="button"
-              className="quick-action"
-              onClick={() => navigate(action.path)}
+        <div className="hero-metrics">
+          <div className="hero-metric hero-level">
+            <span className="eyebrow hero-metric-label">{t('dashboard.level')}</span>
+            <div className="hero-level-row">
+              <span className="stat-display hero-level-number">{user.level >= 1000 ? 'MAX' : user.level}</span>
+            </div>
+            <div
+              className="hero-exp-bar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+              aria-label="EXP"
             >
-              <span className="quick-action-icon"><Icon size={18} /></span>
-              <span className="quick-action-text">{t(action.key)}</span>
-              <ChevronRight size={14} className="quick-action-chevron" />
-            </button>
-          );
-        })}
-      </nav>
+              <span style={{ width: `${progressPercent}%` }} />
+            </div>
+            <div className="hero-exp-meta">
+              <span>{user.level >= 1000 ? t('dashboard.levelMax') : `${user.totalExp} / ${nextLevelExp} EXP`}</span>
+              <span>{progressPercent}%</span>
+            </div>
+          </div>
+
+          <div className="hero-metric">
+            <span className="eyebrow hero-metric-label"><Flame size={12} /> {t('dashboard.streak')}</span>
+            <div className="hero-metric-row">
+              <span className="stat-display hero-metric-value">{streak}</span>
+              <span className="hero-metric-unit">{t('dashboard.streakDays')}</span>
+            </div>
+          </div>
+
+          <div className="hero-metric">
+            <span className="eyebrow hero-metric-label"><Coins size={12} /> {t('dashboard.coins')}</span>
+            <div className="hero-metric-row">
+              <span className="stat-display hero-metric-value">{(user.coins || 0).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="hero-metric">
+            <span className="eyebrow hero-metric-label"><Award size={12} /> {t('dashboard.prestige')}</span>
+            <div className="hero-metric-row">
+              <span className="stat-display hero-metric-value">{(user.prestige || 0).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="hero-actions">
+          <button type="button" className="btn btn-primary hero-cta" onClick={() => navigate('/workout')}>
+            <Dumbbell size={18} /> {t('dashboard.startWorkout')}
+          </button>
+          <nav className="hero-shortcuts" aria-label={t('dashboard.quickActions')}>
+            {HERO_SHORTCUTS.map(action => {
+              const Icon = action.icon;
+              return (
+                <button key={action.path} type="button" className="hero-shortcut" onClick={() => navigate(action.path)}>
+                  <Icon size={16} /> {t(action.key)}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
 
       {showAvatarPicker && (
         <section className="animate-fade-in card dashboard-full" style={{ padding: '16px', marginBottom: '20px' }}>
@@ -425,7 +454,7 @@ export const Dashboard = () => {
               return (
                 <button
                   key={avatar.id}
-                  onClick={() => { updateProfile({ heroIcon: avatar.id }); toast({ text: t('dashboard.avatarChanged'), tone: 'success', icon: '🎭' }); }}
+                  onClick={() => { updateProfile({ heroIcon: avatar.id }); toast({ text: t('dashboard.avatarChanged'), tone: 'success' }); }}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', background: isSelected ? 'var(--accent-soft)' : 'var(--surface-hover)', border: isSelected ? '1px solid var(--accent-border)' : '1px solid transparent', borderRadius: '10px', cursor: 'pointer', transition: '0.2s all' }}
                 >
                   <Icon size={24} color={isSelected ? 'var(--accent)' : 'var(--text-muted)'} />
@@ -442,7 +471,7 @@ export const Dashboard = () => {
                 <button
                   key={col.id}
                   title={t('dashboard.colorNames.' + col.id, col.label)}
-                  onClick={() => { updateProfile({ heroColor: col.id }); toast({ text: t('dashboard.colorChanged'), tone: 'success', icon: '🎨' }); }}
+                  onClick={() => { updateProfile({ heroColor: col.id }); toast({ text: t('dashboard.colorChanged'), tone: 'success' }); }}
                   style={{
                     width: '36px', height: '36px', borderRadius: '50%',
                     background: col.value,
@@ -493,7 +522,7 @@ export const Dashboard = () => {
             <h3 style={{ fontSize: '16px', margin: 0 }}>{t('dashboard.streakTitle')}</h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '28px', fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{streak}</span>
+            <span className="stat-display" style={{ fontSize: '32px', color: 'var(--accent)', lineHeight: 1 }}>{streak}</span>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.3 }}>{t('dashboard.streakDaysLabel')}</span>
           </div>
         </div>
@@ -542,7 +571,7 @@ export const Dashboard = () => {
             {isEditing ? (
               <input type="number" className="input-field" value={editWeight} onChange={e => setEditWeight(e.target.value)} style={{ padding: '8px' }} />
             ) : (
-              <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{user.weight || 70} kg</div>
+              <div className="stat-display" style={{ fontSize: '26px' }}>{user.weight || 70} kg</div>
             )}
           </div>
           <div>
@@ -550,7 +579,7 @@ export const Dashboard = () => {
             {isEditing ? (
               <input type="number" className="input-field" value={editHeight} onChange={e => setEditHeight(e.target.value)} style={{ padding: '8px' }} />
             ) : (
-              <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{user.height || 175} cm</div>
+              <div className="stat-display" style={{ fontSize: '26px' }}>{user.height || 175} cm</div>
             )}
           </div>
         </div>
@@ -567,17 +596,17 @@ export const Dashboard = () => {
           return (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: '8px', marginTop: '4px' }}>
               <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{bmiRounded}</div>
+                <div className="stat-display" style={{ fontSize: '22px', color: 'var(--text-primary)' }}>{bmiRounded}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '1px' }}>{t('dashboard.bmiLabel', 'BMI')}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{bmiLabel}</div>
               </div>
               <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{ppm}</div>
+                <div className="stat-display" style={{ fontSize: '22px', color: 'var(--text-primary)' }}>{ppm}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '1px' }}>PPM (kcal)</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{t('dashboard.bmrRest')}</div>
               </div>
               <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>{tdee}</div>
+                <div className="stat-display" style={{ fontSize: '22px', color: 'var(--text-primary)' }}>{tdee}</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '1px' }}>TDEE (kcal)</div>
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{t('dashboard.tdeeActive')}</div>
               </div>
@@ -639,8 +668,8 @@ export const Dashboard = () => {
               <span className="label" style={{ marginBottom: '8px' }}>{t('dashboard.selectLang')}</span>
               <div style={{ display: 'flex', gap: '10px' }}>
                 {[
-                  { id: 'pl', label: 'Polski 🇵🇱' },
-                  { id: 'en', label: 'English 🇬🇧' }
+                  { id: 'pl', label: 'Polski' },
+                  { id: 'en', label: 'English' }
                 ].map(langItem => {
                   const isSelected = (user.language || 'pl') === langItem.id;
                   return (
@@ -648,7 +677,7 @@ export const Dashboard = () => {
                       key={langItem.id}
                       onClick={() => {
                         updateProfile({ language: langItem.id });
-                        toast({ text: langItem.id === 'pl' ? 'Zmieniono język!' : 'Language changed!', tone: 'success', icon: '🌐' });
+                        toast({ text: langItem.id === 'pl' ? 'Zmieniono język!' : 'Language changed!', tone: 'success' });
                       }}
                       className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
                       style={{
@@ -730,7 +759,7 @@ export const Dashboard = () => {
               {inventory.map(item => (
                 <div
                   key={item.id}
-                  onClick={() => { equipItem(item.id, item.type); toast({ text: t('dashboard.itemEquippedToast').replace('{name}', translateItemName(item.name, lang)), tone: 'success', icon: '⚔️' }); }}
+                  onClick={() => { equipItem(item.id, item.type); toast({ text: t('dashboard.itemEquippedToast').replace('{name}', translateItemName(item.name, lang)), tone: 'success' }); }}
                   style={{ padding: '10px', background: 'var(--surface-hover)', borderRadius: '10px', border: `1px solid ${getRarityColor(item.rarity)}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px', transition: '0.2s' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -787,7 +816,7 @@ export const Dashboard = () => {
               <div key={muscle} className="card" style={{ padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '2px 8px', marginBottom: '2px' }}>
                   <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{t('dashboard.' + muscle.toLowerCase())}</p>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-base)', whiteSpace: 'nowrap' }}>
+                  <span className="stat-display" style={{ fontSize: '14px', color: 'var(--accent-base)', whiteSpace: 'nowrap' }}>
                     {stat.level >= 1000 ? 'MAX' : `${t('dashboard.level')} ${stat.level} (${mPercent}%)`}
                   </span>
                 </div>

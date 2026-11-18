@@ -6,16 +6,23 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import {
-  DEFAULT_TOAST_ICONS,
   MAX_TOASTS,
   ToastContext,
   type ToastInput,
+  type ToastTone,
 } from './toastContext';
 
 interface ToastItem extends ToastInput {
   id: number;
 }
+
+const ToneIcon = ({ tone }: { tone: ToastTone }) => {
+  if (tone === 'error') return <AlertTriangle size={16} />;
+  if (tone === 'info') return <Info size={16} />;
+  return <CheckCircle2 size={16} />;
+};
 
 export const ToastProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -63,7 +70,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
             onClick={() => dismiss(item.id)}
           >
             <span className="toast-icon" aria-hidden="true">
-              {item.icon ?? DEFAULT_TOAST_ICONS[item.tone ?? 'success']}
+              {item.icon ?? <ToneIcon tone={item.tone ?? 'success'} />}
             </span>
             <span className="toast-text">{item.text}</span>
           </div>

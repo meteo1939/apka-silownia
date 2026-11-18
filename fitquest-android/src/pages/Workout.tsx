@@ -499,10 +499,10 @@ export const Workout = () => {
 
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
-      case 'Legendary': return '#f97316';
-      case 'Epic': return '#eceef1';
-      case 'Rare': return '#a3a8b0';
-      default: return '#71767f';
+      case 'Legendary': return '#f7f8fa';
+      case 'Epic': return '#c9cdd3';
+      case 'Rare': return '#8b9098';
+      default: return '#6d7178';
     }
   };
 
