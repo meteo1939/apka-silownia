@@ -535,14 +535,14 @@ export const Arena = () => {
       }
       @keyframes arena-block {
         0%   { transform: translateX(0) scale(1); filter: brightness(1); }
-        20%  { transform: translateX(-10px) scale(1.08); filter: brightness(1.6) drop-shadow(0 0 12px rgba(249,115,22,0.6)); }
-        55%  { transform: translateX(-6px) scale(1.04); filter: brightness(1.3) drop-shadow(0 0 8px rgba(249,115,22,0.4)); }
+        20%  { transform: translateX(-10px) scale(1.08); filter: brightness(1.6) drop-shadow(0 0 12px rgba(230,232,236,0.55)); }
+        55%  { transform: translateX(-6px) scale(1.04); filter: brightness(1.3) drop-shadow(0 0 8px rgba(230,232,236,0.38)); }
         100% { transform: translateX(0) scale(1); filter: brightness(1); }
       }
       @keyframes arena-block-enemy {
         0%   { transform: translateX(0) scale(1); filter: brightness(1); }
-        20%  { transform: translateX(10px) scale(1.08); filter: brightness(1.6) drop-shadow(0 0 12px rgba(249,115,22,0.6)); }
-        55%  { transform: translateX(6px) scale(1.04); filter: brightness(1.3) drop-shadow(0 0 8px rgba(249,115,22,0.4)); }
+        20%  { transform: translateX(10px) scale(1.08); filter: brightness(1.6) drop-shadow(0 0 12px rgba(230,232,236,0.55)); }
+        55%  { transform: translateX(6px) scale(1.04); filter: brightness(1.3) drop-shadow(0 0 8px rgba(230,232,236,0.38)); }
         100% { transform: translateX(0) scale(1); filter: brightness(1); }
       }
       @keyframes block-shield-anim {
@@ -585,126 +585,94 @@ export const Arena = () => {
 
       {/* LOBBY / SEARCH SCREEN */}
       {!player || !enemy ? (
-        <section className="card" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', overflow: 'hidden' }}>
+        <section className="card arena-lobby">
           
           {/* SEARCHING RADAR ANIMATION */}
           {isSearching ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 10px', flex: 1 }}>
-              <div style={{ 
-                position: 'relative', 
-                width: '96px', 
-                height: '96px', 
-                borderRadius: '50%', 
-                border: '2px solid var(--border)',
-                borderTopColor: 'var(--accent)',
-                marginBottom: '28px',
-                animation: 'spin-radar 1s infinite linear',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
+            <div className="arena-search">
+              <div className="arena-radar">
                 <Cpu size={22} color="var(--accent)" />
               </div>
               
-              <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <h4 className="arena-search-title">
                 {lang === 'pl' ? 'Wyszukiwanie Przeciwników...' : 'Searching for Opponents...'}
               </h4>
-              <div style={{ 
-                width: '100%', 
-                background: 'var(--surface-2)', 
-                border: '1px solid var(--border-color)', 
-                borderRadius: '8px', 
-                padding: '12px', 
-                fontFamily: 'monospace', 
-                fontSize: '11px', 
-                color: 'var(--text-2)', 
-                textAlign: 'left',
-                height: '150px',
-                overflowY: 'auto',
-                scrollBehavior: 'smooth'
-              }}>
+              <div className="arena-search-log">
                 {searchLogs.map((logMsg, lIdx) => (
-                  <div key={lIdx} style={{ marginBottom: '4px' }}>&gt; {logMsg}</div>
+                  <div key={lIdx}>&gt; {logMsg}</div>
                 ))}
               </div>
             </div>
           ) : (
             <>
               {opponents.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 10px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <Search size={44} color={myLeague.color} style={{ margin: '0 auto 16px', opacity: 0.8 }} />
-                  <h3 style={{ fontSize: '19px', marginBottom: '8px' }}>
+                <div className="arena-lobby-empty">
+                  <div className="arena-lobby-icon">
+                    <Search size={30} color="var(--accent)" />
+                  </div>
+                  <h3 className="arena-lobby-title">
                     {lang === 'pl' ? 'Gotowy na starcie?' : 'Ready for battle?'}
                   </h3>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', maxWidth: '320px', margin: '0 auto 24px' }}>
+                  <p className="arena-lobby-desc">
                     {lang === 'pl' 
                       ? 'Skaner matchmakingu dobierze sześciu gladiatorów o poziomach dopasowanych do Twojej łącznej siły fizycznej.'
                       : 'The matchmaking scanner will find six gladiators with levels matched to your overall physical strength.'}
                   </p>
-                  <button className="btn btn-primary" onClick={findOpponents} style={{ width: '100%', padding: '14px', fontSize: '16px' }}>
+                  <button className="btn btn-primary arena-scan-btn" onClick={findOpponents}>
                     {t('arena.scanBtn')}
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                     <Flame size={18} color="var(--accent-base)" />
-                     <h3 style={{ fontSize: '16px', margin: 0 }}>
-                       {lang === 'pl' ? 'Wybierz cel pojedynku:' : 'Select battle target:'}
+                <div className="arena-targets">
+                   <div className="arena-targets-head">
+                     <Flame size={16} color="var(--accent)" />
+                     <h3>
+                       {lang === 'pl' ? 'Wybierz cel pojedynku' : 'Select battle target'}
                      </h3>
                    </div>
                    
                    {opponents.map((opp, idx) => {
                       const diffLabel = getDifficultyLabel(opp.difficulty);
-                      let diffColor = "var(--text-secondary)";
-                      let multLabel = "1.0x";
-                      if (opp.difficulty === 'stronger') {
-                         diffColor = "var(--danger)";
-                         multLabel = "1.6x";
-                      } else if (opp.difficulty === 'weaker') {
-                         diffColor = "var(--text-secondary)";
-                         multLabel = "0.5x";
-                      }
+                      const isHard = opp.difficulty === 'stronger';
+                      const isEasy = opp.difficulty === 'weaker';
+                      const multLabel = isHard ? '1.6x' : isEasy ? '0.5x' : '1.0x';
                       
                       const estPrestige = Math.round((Math.floor(opp.totalLvl / 2) + 10) * (opp.difficulty === 'weaker' ? 0.5 : opp.difficulty === 'stronger' ? 1.6 : 1.0));
                       const estCoins = Math.round((Math.floor(opp.totalLvl * 1.5) + 20) * (opp.difficulty === 'weaker' ? 0.5 : opp.difficulty === 'stronger' ? 1.6 : 1.0));
                       
                       return (
-                        <div 
-                          key={idx} 
+                        <button
+                          type="button"
+                          key={idx}
                           onClick={() => setSelectedEnemy(opp)}
-                          style={{
-                             padding: '14px', borderRadius: '12px', cursor: 'pointer',
-                             border: selectedEnemy === opp ? `1px solid var(--accent-base)` : '1px solid var(--border-color)',
-                             background: selectedEnemy === opp ? 'var(--accent-soft)' : 'var(--surface-color)',
-                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                             transition: '0.2s',
-                             boxShadow: 'none'
-                          }}
+                          aria-pressed={selectedEnemy === opp}
+                          className={`arena-opponent${selectedEnemy === opp ? ' is-selected' : ''}`}
                         >
-                           <div style={{ textAlign: 'left' }}>
-                              <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--text-primary)' }}>{opp.name}</div>
-                              <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                   {lang === 'pl' ? 'Moc' : 'Power'}: {opp.totalLvl}
+                           <span className="arena-opponent-main">
+                              <span className="arena-opponent-name">{opp.name}</span>
+                              <span className="arena-opponent-meta">
+                                 <span className={`arena-diff${isHard ? ' is-hard' : isEasy ? ' is-easy' : ''}`}>
+                                   {diffLabel} · {multLabel}
                                  </span>
-                                 <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--text-muted)' }} />
-                                 <span style={{ fontSize: '11px', color: diffColor, fontWeight: 'bold' }}>{diffLabel} ({multLabel})</span>
-                              </div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Trophy size={11} color="var(--text-secondary)" /> +{estPrestige}</span>
-                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Coins size={11} color="var(--accent)" /> +{estCoins}</span>
-                              </div>
-                           </div>
-                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                              <div style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                 <Heart size={12} color="var(--danger)" fill="currentColor" /> {opp.hp} HP
-                              </div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                                {lang === 'pl' ? 'Pancerz' : 'Armor'}: {opp.armor}
-                              </div>
-                           </div>
-                        </div>
+                                 <span className="meta-chip">
+                                   {lang === 'pl' ? 'Pancerz' : 'Armor'} <strong>{opp.armor}</strong>
+                                 </span>
+                              </span>
+                              <span className="arena-opponent-rewards">
+                                 <span><Trophy size={11} /> +{estPrestige}</span>
+                                 <span><Coins size={11} /> +{estCoins}</span>
+                              </span>
+                           </span>
+                           <span className="arena-opponent-side">
+                              <span className="arena-opponent-hp">
+                                <Heart size={11} fill="currentColor" /> {opp.hp} HP
+                              </span>
+                              <span className="arena-opponent-power stat-display">{opp.totalLvl}</span>
+                              <span className="arena-opponent-power-label">
+                                {lang === 'pl' ? 'Moc' : 'Power'}
+                              </span>
+                           </span>
+                        </button>
                       );
                    })}
                    
@@ -712,7 +680,7 @@ export const Arena = () => {
                      className="btn btn-primary" 
                      disabled={!selectedEnemy || currentFightsLeft <= 0}
                      onClick={handleStartFight}
-                     style={{ width: '100%', padding: '14px', marginTop: '16px', fontSize: '15px' }}
+                     style={{ width: '100%', padding: '14px', marginTop: '6px', fontSize: '15px' }}
                    >
                      <Swords size={20} /> {currentFightsLeft > 0 ? (lang === 'pl' ? 'ROZPOCZNIJ WALKĘ' : 'START FIGHT') : (lang === 'pl' ? 'BRAK PRÓB NA DZIŚ' : 'NO FIGHTS LEFT TODAY')}
                    </button>
