@@ -391,8 +391,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const achievements = achievementRows.map(a => a.achievement_id);
       const meals = mealRows;
 
+      // `consumed_calories` is a cache of today's meals. Recompute it on load so
+      // the daily counter resets after midnight even if the profile row still
+      // holds yesterday's total. If the meals query failed, keep the stored value.
+      const todayCalories = mealsRes.error
+        ? (profileRow.consumed_calories || 0)
+        : mealRows.reduce((sum, meal) => sum + (Number(meal.calories) || 0), 0);
+
+      if (!mealsRes.error && todayCalories !== profileRow.consumed_calories) {
+        void supabase
+          .from('profiles')
+          .update({ consumed_calories: todayCalories, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+      }
+
       const userProfile = mapProfileFromDB(
-        profileRow,
+        { ...profileRow, consumed_calories: todayCalories },
         muscleRows,
         achievements,
         inventoryItems,
