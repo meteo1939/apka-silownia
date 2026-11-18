@@ -102,65 +102,60 @@ export const Leaderboard = () => {
     <div className="container app-page page-leaderboard page-transition">
 
       {/* ——— HEADER ——— */}
-      <header style={{ marginBottom: '24px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
-          <div style={{ padding: '12px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: '12px' }}>
-            <Trophy size={30} color="var(--accent)" />
-          </div>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">{lang === 'pl' ? 'Ranking globalny' : 'Global ranking'}</span>
+          <h1 className="page-title">{lang === 'pl' ? 'Hall of Sławy' : 'Hall of Fame'}</h1>
+          <p className="page-subtitle">
+            {lang === 'pl' ? 'Porównaj swoją siłę z innymi gladiatorami.' : 'Compare your strength with other gladiators.'}
+          </p>
         </div>
-        <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '6px' }}>{lang === 'pl' ? 'Hall of Sławy' : 'Hall of Fame'}</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '20px' }}>
-          {lang === 'pl' ? 'Porównaj swoją siłę z innymi gladiatorami.' : 'Compare your strength with other gladiators.'}
-        </p>
 
-        {/* Your current rank badge */}
         {myEntry && (
-          <div className="card" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '8px 16px', marginBottom: '18px', border: '1px solid var(--accent-base)' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              {lang === 'pl' ? 'Twoja pozycja:' : 'Your position:'}
-            </span>
-            <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--accent-base)' }}>#{myEntry.rank}</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {lang === 'pl' ? `z ${fullBoard.length} graczy` : `of ${fullBoard.length} players`}
-            </span>
+          <div className="rank-badge">
+            <span className="eyebrow">{lang === 'pl' ? 'Twoja pozycja' : 'Your position'}</span>
+            <div className="rank-badge-row">
+              <strong className="stat-display">#{myEntry.rank}</strong>
+              <span>{lang === 'pl' ? `z ${fullBoard.length} graczy` : `of ${fullBoard.length} players`}</span>
+            </div>
           </div>
         )}
+      </header>
 
-        {/* Global / Friends toggle */}
-        <div style={{ display: 'flex', gap: '4px', padding: '4px', background: 'var(--surface-hover)', borderRadius: '12px', marginBottom: '12px' }}>
+      <div className="leaderboard-controls">
+        <div className="seg-control" role="group" aria-label={lang === 'pl' ? 'Zakres rankingu' : 'Ranking scope'}>
           <button
+            type="button"
+            className={`seg-btn${viewMode === 'global' ? ' is-active' : ''}`}
             onClick={() => setViewMode('global')}
-            style={{ flex: 1, padding: '9px', border: 'none', background: viewMode === 'global' ? 'var(--accent)' : 'transparent', color: viewMode === 'global' ? 'var(--accent-contrast)' : 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}
+            aria-pressed={viewMode === 'global'}
           >
             {lang === 'pl' ? 'Globalny' : 'Global'}
           </button>
           <button
+            type="button"
+            className={`seg-btn${viewMode === 'friends' ? ' is-active' : ''}`}
             onClick={() => setViewMode('friends')}
-            style={{ flex: 1, padding: '9px', border: 'none', background: viewMode === 'friends' ? 'var(--accent)' : 'transparent', color: viewMode === 'friends' ? 'var(--accent-contrast)' : 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}
+            aria-pressed={viewMode === 'friends'}
           >
             {lang === 'pl' ? 'Znajomi' : 'Friends'} {friends.length > 0 ? `(${friends.length})` : ''}
           </button>
         </div>
 
-        {/* Prestige / Streak / Muscle tab */}
-        <div style={{ display: 'flex', gap: '4px', padding: '4px', background: 'var(--surface-hover)', borderRadius: '12px' }}>
+        <div className="seg-control seg-control-grow" role="group" aria-label={lang === 'pl' ? 'Kategoria rankingu' : 'Ranking category'}>
           {(['prestige', 'streak', 'muscle'] as const).map(tab => (
             <button
               key={tab}
+              type="button"
+              className={`seg-btn${activeTab === tab ? ' is-active' : ''}`}
               onClick={() => setActiveTab(tab)}
-              style={{
-                flex: 1, padding: '9px 4px', border: 'none',
-                background: activeTab === tab ? TAB_LABELS[tab].color : 'transparent',
-                color: activeTab === tab ? 'white' : 'var(--text-secondary)',
-                borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', transition: '0.2s',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
-              }}
+              aria-pressed={activeTab === tab}
             >
               {tabIcon(tab)} {TAB_LABELS[tab].label}
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
       {viewMode === 'friends' && friends.length === 0 && (
         <div className="card animate-fade-in" style={{ padding: '14px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px dashed var(--border-strong)' }}>

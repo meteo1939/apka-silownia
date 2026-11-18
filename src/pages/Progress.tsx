@@ -151,10 +151,11 @@ export const Progress = () => {
     <>
       <Navigation />
       <div className="container app-page page-progress page-transition">
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
+        <header className="page-head">
           <div>
-            <h1 className="text-gradient" style={{ fontSize: 28, marginBottom: 6 }}>{t('progress.title')}</h1>
-            <p style={{ color: 'var(--text-2)', fontSize: 14 }}>{t('progress.subtitle')}</p>
+            <span className="eyebrow">{t('progress.analytics')}</span>
+            <h1 className="page-title">{t('progress.title')}</h1>
+            <p className="page-subtitle">{t('progress.subtitle')}</p>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => setShowOnboarding(true)} style={{ padding: '9px 14px', flexShrink: 0 }}>
             <Target size={15} /> {onboarding ? t('dashboard.editProfile') : t('onboarding.title')}

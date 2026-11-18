@@ -3,7 +3,7 @@ import { useAuthStore, calculateBMR } from '../store/useAuthStore';
 import { Navigation } from '../components/Navigation';
 import { useTranslation } from '../lib/translations';
 import { goalLabelKey } from '../lib/onboarding';
-import { Plus, Target, Trash2, Scale, Search, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Scale, Search, Sparkles } from 'lucide-react';
 
 const INGREDIENTS = [
   { name: 'Chleb żytni', caloriesPer100g: 259, protein: 6.5, carbs: 48, fat: 1.7 },
@@ -125,6 +125,7 @@ export const Calories = () => {
   const tdee = onboarding?.targetCalories || Math.round(bmr * 1.55);
   const consumed = user.consumedCalories || 0;
   const foodPercent = Math.min(100, Math.round((consumed / tdee) * 100));
+  const overLimit = consumed > tdee;
 
   // Calculate target macros (onboarding targets take priority)
   const proteinTarget = onboarding?.protein || (user.weight ? Math.round(user.weight * 2) : 140);
@@ -202,79 +203,92 @@ export const Calories = () => {
   return (
     <>
     <div className="container app-page page-calories page-transition">
-      <header style={{ marginBottom: '24px' }}>
-        <h1 className="text-gradient" style={{ fontSize: '28px', marginBottom: '8px' }}>{t('calories.title')}</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {lang === 'pl' ? 'Planuj dietę i buduj formę gladiatora' : 'Plan your diet and build your gladiator physique'}
-        </p>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">{t('navigation.calories')}</span>
+          <h1 className="page-title">{t('calories.title')}</h1>
+          <p className="page-subtitle">
+            {lang === 'pl' ? 'Planuj dietę i buduj formę gladiatora' : 'Plan your diet and build your gladiator physique'}
+          </p>
+        </div>
       </header>
 
       {/* Calories Progress */}
-      <section className="card" style={{ padding: '24px', marginBottom: '24px' }}>
+      <section className="nutrition-hud">
         {onboarding && (
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
-            <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', fontWeight: 600 }}>
+          <div className="nutrition-chips">
+            <span className="meta-chip meta-chip-accent">
               {t(goalLabelKey(onboarding.goal))}
             </span>
-            <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+            <span className="meta-chip">
               {t(`workout.plans.${onboarding.planId}.name`, onboarding.planId)}
             </span>
-            <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+            <span className="meta-chip">
               P {onboarding.protein}g · C {onboarding.carbs}g · F {onboarding.fat}g
             </span>
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Target size={20} color="var(--accent-base)" />
-            <span style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>
+
+        <div className="nutrition-top">
+          <div className="nutrition-main">
+            <span className="eyebrow">
               {onboarding
                 ? (lang === 'pl' ? 'Cel kalorii z planu' : 'Plan calorie target')
                 : (lang === 'pl' ? 'Zapotrzebowanie (TDEE)' : 'Daily Target (TDEE)')}
             </span>
-          </div>
-          <span style={{ fontWeight: 'bold', fontSize: '18px' }}>{consumed} / {tdee} kcal</span>
-        </div>
-
-        <div style={{ width: '100%', height: '12px', background: 'var(--surface-hover)', borderRadius: '6px', overflow: 'hidden', marginBottom: '20px' }}>
-          <div style={{ width: `${foodPercent}%`, height: '100%', background: foodPercent > 100 ? 'var(--danger)' : 'var(--accent)', transition: 'width 0.3s' }} />
-        </div>
-
-        {/* Macros Progress Bar Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-          <div style={{ background: 'var(--surface-2)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              {t('calories.protein')} (P)
-            </span>
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{totalProtein} / {proteinTarget}g</span>
-            <div style={{ width: '100%', height: '4px', background: 'var(--surface-3)', borderRadius: '2px', overflow: 'hidden', marginTop: '6px' }}>
-              <div style={{ width: `${pPercent}%`, height: '100%', background: 'var(--accent)' }} />
+            <div className="nutrition-value stat-display">
+              {consumed}
+              <span className="nutrition-sep">/</span>
+              <span className="nutrition-target">{tdee}</span>
+              <small>kcal</small>
             </div>
           </div>
-          
-          <div style={{ background: 'var(--surface-2)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              {lang === 'pl' ? 'Węgle' : 'Carbs'} (C)
-            </span>
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{totalCarbs} / {carbsTarget}g</span>
-            <div style={{ width: '100%', height: '4px', background: 'var(--surface-3)', borderRadius: '2px', overflow: 'hidden', marginTop: '6px' }}>
-              <div style={{ width: `${cPercent}%`, height: '100%', background: 'var(--accent)' }} />
-            </div>
-          </div>
-
-          <div style={{ background: 'var(--surface-2)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              {t('calories.fats')} (F)
-            </span>
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{totalFat} / {fatTarget}g</span>
-            <div style={{ width: '100%', height: '4px', background: 'var(--surface-3)', borderRadius: '2px', overflow: 'hidden', marginTop: '6px' }}>
-              <div style={{ width: `${fPercent}%`, height: '100%', background: 'var(--accent)' }} />
+          <div className={`nutrition-remaining${overLimit ? ' is-over' : ''}`}>
+            <span className="eyebrow">{t('calories.remaining')}</span>
+            <div>
+              <strong className="stat-display">{Math.max(tdee - consumed, 0)}</strong>
+              <small>kcal</small>
             </div>
           </div>
         </div>
 
-        {foodPercent > 100 && (
-          <p style={{ color: 'var(--danger)', fontSize: '13px', textAlign: 'center', marginTop: '16px', fontWeight: 500 }}>
+        <div
+          className={`nutrition-bar${overLimit ? ' is-over' : ''}`}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={tdee}
+          aria-valuenow={Math.min(consumed, tdee)}
+          aria-label={t('calories.title')}
+        >
+          <span style={{ width: `${foodPercent}%` }} />
+        </div>
+
+        <div className="macro-grid">
+          <div className="macro-tile">
+            <div className="macro-head">
+              <span>{t('calories.protein')} (P)</span>
+              <span className="macro-value stat-display">{totalProtein}<small> / {proteinTarget} g</small></span>
+            </div>
+            <div className="macro-track"><span style={{ width: `${pPercent}%` }} /></div>
+          </div>
+          <div className="macro-tile">
+            <div className="macro-head">
+              <span>{t('calories.carbs')} (C)</span>
+              <span className="macro-value stat-display">{totalCarbs}<small> / {carbsTarget} g</small></span>
+            </div>
+            <div className="macro-track"><span style={{ width: `${cPercent}%` }} /></div>
+          </div>
+          <div className="macro-tile">
+            <div className="macro-head">
+              <span>{t('calories.fats')} (F)</span>
+              <span className="macro-value stat-display">{totalFat}<small> / {fatTarget} g</small></span>
+            </div>
+            <div className="macro-track"><span style={{ width: `${fPercent}%` }} /></div>
+          </div>
+        </div>
+
+        {overLimit && (
+          <p className="nutrition-warning">
             {lang === 'pl' ? 'Przekroczono dzienny limit kalorii!' : 'Daily calorie limit exceeded!'}
           </p>
         )}
@@ -282,30 +296,39 @@ export const Calories = () => {
 
       {/* Quick Add Presets */}
       <section className="card" style={{ padding: '20px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Sparkles size={18} color="var(--accent-base)" />
+        <h3 className="card-title">
+          <Sparkles size={18} color="var(--accent)" />
           {t('calories.quickTemplates')}
         </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button className="btn btn-secondary" onClick={() => quickAddMeal('Śniadanie Siłacza (Jajka + Chleb)', 'Power Breakfast (Eggs + Bread)', 396, 23, 34, 15)} style={{ width: '100%', fontSize: '13px', padding: '10px 14px', justifyContent: 'space-between' }}>
-            <span>{t('calories.breakfast')} ({lang === 'pl' ? 'Jajka + Chleb' : 'Eggs + Bread'})</span>
-            <span style={{ color: 'var(--accent-base)', fontWeight: 600 }}>396 kcal | 23g {lang === 'pl' ? 'B' : 'P'}</span>
+        <div className="quick-meal-list">
+          <button className="quick-meal" onClick={() => quickAddMeal('Śniadanie Siłacza (Jajka + Chleb)', 'Power Breakfast (Eggs + Bread)', 396, 23, 34, 15)}>
+            <span className="quick-meal-name">
+              {t('calories.breakfast')}
+              <small>{lang === 'pl' ? 'Jajka + Chleb' : 'Eggs + Bread'}</small>
+            </span>
+            <span className="quick-meal-kcal stat-display">396 <small>kcal</small><em>23g P</em></span>
           </button>
-          <button className="btn btn-secondary" onClick={() => quickAddMeal('Obiad Gladiatora (Kurczak + Ryż)', 'Gladiator Lunch (Chicken + Rice)', 696, 53, 80, 15)} style={{ width: '100%', fontSize: '13px', padding: '10px 14px', justifyContent: 'space-between' }}>
-            <span>{t('calories.lunch')} ({lang === 'pl' ? 'Kurczak + Ryż' : 'Chicken + Rice'})</span>
-            <span style={{ color: 'var(--accent-base)', fontWeight: 600 }}>696 kcal | 53g {lang === 'pl' ? 'B' : 'P'}</span>
+          <button className="quick-meal" onClick={() => quickAddMeal('Obiad Gladiatora (Kurczak + Ryż)', 'Gladiator Lunch (Chicken + Rice)', 696, 53, 80, 15)}>
+            <span className="quick-meal-name">
+              {t('calories.lunch')}
+              <small>{lang === 'pl' ? 'Kurczak + Ryż' : 'Chicken + Rice'}</small>
+            </span>
+            <span className="quick-meal-kcal stat-display">696 <small>kcal</small><em>53g P</em></span>
           </button>
-          <button className="btn btn-secondary" onClick={() => quickAddMeal('Białkowy Shake (Skyr + Banan + WPC)', 'Protein Shake (Skyr + Banana + WPC)', 338, 38, 44, 2)} style={{ width: '100%', fontSize: '13px', padding: '10px 14px', justifyContent: 'space-between' }}>
-            <span>Shake ({lang === 'pl' ? 'Skyr + Banan + WPC' : 'Skyr + Banana + WPC'})</span>
-            <span style={{ color: 'var(--accent-base)', fontWeight: 600 }}>338 kcal | 38g {lang === 'pl' ? 'B' : 'P'}</span>
+          <button className="quick-meal" onClick={() => quickAddMeal('Białkowy Shake (Skyr + Banan + WPC)', 'Protein Shake (Skyr + Banana + WPC)', 338, 38, 44, 2)}>
+            <span className="quick-meal-name">
+              Shake
+              <small>{lang === 'pl' ? 'Skyr + Banan + WPC' : 'Skyr + Banana + WPC'}</small>
+            </span>
+            <span className="quick-meal-kcal stat-display">338 <small>kcal</small><em>38g P</em></span>
           </button>
         </div>
       </section>
 
       {/* Advanced Product Search Calculator */}
       <section className="card" style={{ padding: '24px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Scale size={20} color="var(--accent-base)" />
+        <h3 className="card-title">
+          <Scale size={20} color="var(--accent)" />
           {lang === 'pl' ? 'Wyszukaj i Oblicz Produkt' : 'Search & Calculate Product'}
         </h3>
         
@@ -384,7 +407,7 @@ export const Calories = () => {
 
       {/* Custom Meal Input */}
       <section className="card" style={{ padding: '24px', marginBottom: '32px' }}>
-        <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>{t('calories.customProduct')}</h3>
+        <h3 className="card-title">{t('calories.customProduct')}</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <input 
             type="text" 
@@ -438,31 +461,37 @@ export const Calories = () => {
 
       {/* Today's Meals */}
       <section>
-        <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>{t('calories.mealHistory')}</h3>
+        <div className="workout-section-head">
+          <div>
+            <span className="eyebrow">{t('calories.today')}</span>
+            <h3 className="workout-section-title">{t('calories.mealHistory')}</h3>
+          </div>
+          <span className="count-chip">{consumed} kcal</span>
+        </div>
         {!user.meals || user.meals.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '24px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-            {t('calories.noMeals')}
-          </p>
+          <p className="meal-empty">{t('calories.noMeals')}</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="meal-list">
             {user.meals.map((meal) => {
               const m = parseMacros(meal.name);
               const displayName = getDisplayName(meal.name, lang);
               return (
-                <div key={meal.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{displayName}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                <div key={meal.id} className="meal-row">
+                  <div className="meal-row-main">
+                    <span className="meal-row-name">{displayName}</span>
+                    <span className="meal-row-macros">
                       {lang === 'pl' ? `B: ${m.protein}g | W: ${m.carbs}g | T: ${m.fat}g` : `P: ${m.protein}g | C: ${m.carbs}g | F: ${m.fat}g`}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ color: 'var(--accent-base)', fontWeight: 'bold' }}>+{meal.calories} kcal</span>
-                    <button 
+                  <div className="meal-row-side">
+                    <span className="meal-row-kcal stat-display">+{meal.calories} <small>kcal</small></span>
+                    <button
+                      type="button"
+                      className="meal-row-remove"
                       onClick={() => handleRemoveMeal(meal.id, meal.calories)}
-                      style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                      aria-label={t('calories.mealRemoved')}
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>

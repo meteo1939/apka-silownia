@@ -397,6 +397,7 @@ export const translations = {
     progress: {
       title: 'Postępy',
       subtitle: 'Twoja historia treningów w liczbach.',
+      analytics: 'Analityka',
       totalWorkouts: 'Treningi',
       totalVolume: 'Objętość',
       totalSets: 'Serie',
@@ -478,6 +479,7 @@ export const translations = {
       customProductDesc: 'Dodaj nowy produkt do bazy z dokładnymi makroskładnikami',
       createProduct: 'Utwórz produkt',
       mealHistory: 'Historia dzisiejszych posiłków',
+      today: 'Dziś',
       noMeals: 'Brak zalogowanych posiłków na dzisiaj.',
       mealAdded: 'Dodano posiłek!',
       mealRemoved: 'Usunięto posiłek!',
@@ -952,6 +954,7 @@ export const translations = {
     progress: {
       title: 'Progress',
       subtitle: 'Your workout history in numbers.',
+      analytics: 'Analytics',
       totalWorkouts: 'Workouts',
       totalVolume: 'Volume',
       totalSets: 'Sets',
@@ -1033,6 +1036,7 @@ export const translations = {
       customProductDesc: 'Add a new product with custom macronutrients',
       createProduct: 'Create product',
       mealHistory: 'Today\'s Meals History',
+      today: 'Today',
       noMeals: 'No meals logged for today.',
       mealAdded: 'Meal added!',
       mealRemoved: 'Meal removed!',
