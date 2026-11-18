@@ -1,7 +1,32 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
-import { Dumbbell, User, Ruler, Weight, Mail, Lock, ShieldCheck } from 'lucide-react';
+import { Dumbbell, User, Ruler, Weight, Mail, Lock, ShieldCheck, Flame, Swords } from 'lucide-react';
 import { useTranslation } from '../lib/translations';
+
+const AuthBrand = () => {
+  const { t } = useTranslation();
+
+  return (
+    <aside className="auth-brand">
+      <div className="auth-brand-top">
+        <span className="auth-mark"><Dumbbell size={20} /></span>
+        <span className="auth-wordmark">FitQuest</span>
+      </div>
+
+      <div className="auth-brand-body">
+        <span className="eyebrow">{t('login.brandEyebrow')}</span>
+        <h2 className="auth-brand-title">{t('login.brandTitle')}</h2>
+        <p className="auth-brand-desc">{t('login.brandDesc')}</p>
+      </div>
+
+      <ul className="auth-features">
+        <li><Dumbbell size={15} /> {t('login.featureTraining')}</li>
+        <li><Flame size={15} /> {t('login.featureProgress')}</li>
+        <li><Swords size={15} /> {t('login.featureArena')}</li>
+      </ul>
+    </aside>
+  );
+};
 
 export const Login = () => {
   const { t } = useTranslation();
@@ -59,46 +84,33 @@ export const Login = () => {
   if (emailSent) {
     return (
       <div className="container auth-page page-transition">
-        <div className="card animate-fade-in auth-card" style={{ padding: '40px', textAlign: 'center' }}>
-          {/* Animated envelope icon */}
-          <div style={{
-            width: '72px', height: '72px', borderRadius: '50%',
-            background: 'var(--accent-soft)',
-            border: '1px solid var(--accent-border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 24px'
-          }}>
-            <Mail size={32} color="var(--accent)" />
+        <div className="auth-shell">
+          <AuthBrand />
+
+          <div className="card animate-fade-in auth-card">
+            <div className="auth-success-icon">
+              <Mail size={30} />
+            </div>
+
+            <span className="eyebrow">FitQuest</span>
+            <h2 className="auth-title">{t('login.successTitle')}</h2>
+            <p className="auth-subtitle">{t('login.successDesc')}</p>
+
+            <p className="auth-email-chip">{email}</p>
+
+            <p
+              className="auth-success-note"
+              dangerouslySetInnerHTML={{ __html: t('login.successNotice') }}
+            />
+
+            <button
+              onClick={() => { setEmailSent(false); setIsLogin(true); }}
+              className="btn btn-secondary"
+              style={{ width: '100%' }}
+            >
+              {t('login.successBack')}
+            </button>
           </div>
-
-          <h2 style={{ fontSize: '24px', marginBottom: '12px' }}>{t('login.successTitle')}</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.6' }}>
-            {t('login.successDesc')}
-          </p>
-          <p style={{ 
-            color: 'var(--accent-hover)', 
-            fontWeight: 'bold', 
-            fontSize: '15px', 
-            marginBottom: '24px',
-            padding: '8px 16px',
-            background: 'var(--accent-soft)',
-            borderRadius: '8px',
-            border: '1px solid var(--accent-border)'
-          }}>
-            {email}
-          </p>
-          <p 
-            style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: '1.6', marginBottom: '32px' }}
-            dangerouslySetInnerHTML={{ __html: t('login.successNotice') }}
-          />
-
-          <button
-            onClick={() => { setEmailSent(false); setIsLogin(true); }}
-            className="btn btn-secondary"
-            style={{ width: '100%' }}
-          >
-            {t('login.successBack')}
-          </button>
         </div>
       </div>
     );
@@ -106,102 +118,93 @@ export const Login = () => {
 
   return (
     <div className="container auth-page page-transition">
-      <div className="card animate-fade-in auth-card" style={{ padding: '32px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-          <div style={{ 
-            width: '60px', height: '60px', 
-            borderRadius: '14px', 
-            background: 'var(--accent-soft)',
-            border: '1px solid var(--accent-border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Dumbbell color="var(--accent)" size={28} />
-          </div>
-        </div>
-        
-        <h1 className="page-title" style={{ fontSize: '28px', marginBottom: '8px' }}>FitQuest</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          {isLogin ? t('login.titleLogin') : t('login.titleRegister')}
-        </p>
-        
-        <div className="segmented" style={{ marginBottom: '24px' }}>
-            <button type="button" className={isLogin ? 'is-active' : ''} onClick={() => { setIsLogin(true); setErrorMsg(''); }}>{t('login.tabLogin')}</button>
-            <button type="button" className={!isLogin ? 'is-active' : ''} onClick={() => { setIsLogin(false); setErrorMsg(''); }}>{t('login.tabRegister')}</button>
-        </div>
+      <div className="auth-shell">
+        <AuthBrand />
 
-
-        {errorMsg && (
-            <div style={{ background: 'var(--danger-soft)', border: '1px solid rgba(239, 68, 68, 0.35)', color: 'var(--danger)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-               {errorMsg}
-            </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
+        <div className="card animate-fade-in auth-card">
+          <span className="eyebrow">{isLogin ? t('login.tabLogin') : t('login.tabRegister')}</span>
+          <h1 className="auth-title">{isLogin ? t('login.titleLogin') : t('login.titleRegister')}</h1>
+          <p className="auth-subtitle">{t('login.desc')}</p>
           
-          <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-            <label className="label">{t('login.email')}</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input type="email" className="input-field" placeholder="gladiator@fitquest.com" style={{ paddingLeft: '48px' }} value={email} onChange={e => setEmail(e.target.value)} required />
-            </div>
+          <div className="segmented" style={{ marginBottom: '24px' }}>
+              <button type="button" className={isLogin ? 'is-active' : ''} onClick={() => { setIsLogin(true); setErrorMsg(''); }}>{t('login.tabLogin')}</button>
+              <button type="button" className={!isLogin ? 'is-active' : ''} onClick={() => { setIsLogin(false); setErrorMsg(''); }}>{t('login.tabRegister')}</button>
           </div>
 
-          <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-            <label className="label">{t('login.password')}</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input type="password" className="input-field" placeholder="••••••••" style={{ paddingLeft: '48px' }} value={password} onChange={e => setPassword(e.target.value)} required />
-            </div>
-          </div>
 
-          {!isLogin && (
-            <>
-              <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-                <label className="label">{t('login.repeatPassword')}</label>
-                <div style={{ position: 'relative' }}>
-                  <ShieldCheck size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input type="password" className="input-field" placeholder="••••••••" style={{ paddingLeft: '48px' }} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
-                </div>
+          {errorMsg && (
+              <div className="auth-error" role="alert">
+                 {errorMsg}
               </div>
-
-              <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-                <label className="label">{t('login.usernameLabel')}</label>
-                <div style={{ position: 'relative' }}>
-                  <User size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input type="text" className="input-field" placeholder={t('login.username')} style={{ paddingLeft: '48px' }} value={username} onChange={e => setUsername(e.target.value)} required />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '24px', textAlign: 'left', display: 'flex', gap: '8px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="label">{t('login.height')}</label>
-                  <div style={{ position: 'relative' }}>
-                    <Ruler size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <input type="number" className="input-field" style={{ paddingLeft: '48px' }} value={height} onChange={e => setHeight(e.target.value)} required />
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label className="label">{t('login.weight')}</label>
-                  <div style={{ position: 'relative' }}>
-                    <Weight size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <input type="number" className="input-field" style={{ paddingLeft: '48px' }} value={weight} onChange={e => setWeight(e.target.value)} required />
-                  </div>
-                </div>
-              </div>
-
-               <div style={{ marginBottom: '24px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                  <input type="checkbox" id="terms" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} style={{ marginTop: '4px', width: '20px', height: '20px', accentColor: 'var(--accent-base)' }} required />
-                  <label htmlFor="terms" style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4', cursor: 'pointer' }}>
-                     {t('login.termsText')} <span style={{ color: 'var(--accent-base)' }}>*</span>
-                  </label>
-               </div>
-            </>
           )}
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '8px', opacity: isSubmitting ? 0.7 : 1 }} disabled={isSubmitting}>
-            {isSubmitting ? t('common.loading') : (isLogin ? t('login.btnSubmitLogin') : t('login.btnSubmitRegister'))}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit}>
+            
+            <div className="auth-field">
+              <label className="label">{t('login.email')}</label>
+              <div className="auth-input-wrap">
+                <Mail size={18} className="auth-input-icon" />
+                <input type="email" className="input-field auth-input" placeholder="gladiator@fitquest.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              </div>
+            </div>
+
+            <div className="auth-field">
+              <label className="label">{t('login.password')}</label>
+              <div className="auth-input-wrap">
+                <Lock size={18} className="auth-input-icon" />
+                <input type="password" className="input-field auth-input" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+              </div>
+            </div>
+
+            {!isLogin && (
+              <>
+                <div className="auth-field">
+                  <label className="label">{t('login.repeatPassword')}</label>
+                  <div className="auth-input-wrap">
+                    <ShieldCheck size={18} className="auth-input-icon" />
+                    <input type="password" className="input-field auth-input" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="auth-field">
+                  <label className="label">{t('login.usernameLabel')}</label>
+                  <div className="auth-input-wrap">
+                    <User size={18} className="auth-input-icon" />
+                    <input type="text" className="input-field auth-input" placeholder={t('login.username')} value={username} onChange={e => setUsername(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="auth-field auth-field-row">
+                  <div style={{ flex: 1 }}>
+                    <label className="label">{t('login.height')}</label>
+                    <div className="auth-input-wrap">
+                      <Ruler size={18} className="auth-input-icon" />
+                      <input type="number" className="input-field auth-input" value={height} onChange={e => setHeight(e.target.value)} required />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="label">{t('login.weight')}</label>
+                    <div className="auth-input-wrap">
+                      <Weight size={18} className="auth-input-icon" />
+                      <input type="number" className="input-field auth-input" value={weight} onChange={e => setWeight(e.target.value)} required />
+                    </div>
+                  </div>
+                </div>
+
+                 <div className="auth-terms">
+                    <input type="checkbox" id="terms" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} required />
+                    <label htmlFor="terms">
+                       {t('login.termsText')} <span>*</span>
+                    </label>
+                 </div>
+              </>
+            )}
+
+            <button type="submit" className="btn btn-primary auth-submit" disabled={isSubmitting}>
+              {isSubmitting ? t('common.loading') : (isLogin ? t('login.btnSubmitLogin') : t('login.btnSubmitRegister'))}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
